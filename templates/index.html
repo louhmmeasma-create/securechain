@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero">
+    <h2>La première plateforme de sécurisation de documents par blockchain</h2>
+    <p>Chiffrement AES-256, signatures RSA et blockchain pour garantir l'intégrité de vos documents</p>
+</div>
+
+<div class="features-grid">
+    <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <h3>Chiffrement AES-256</h3>
+        <p>Vos documents sont chiffrés avant stockage</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🖋️</div>
+        <h3>Signature RSA</h3>
+        <p>Preuve cryptographique de votre identité</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">⛓️</div>
+        <h3>Blockchain</h3>
+        <p>Historique immuable et vérifiable</p>
+    </div>
+</div>
+
+{% if not session.user_id %}
+<div style="text-align: center; margin: 40px 0;">
+    <a href="/register" class="btn btn-primary" style="margin-right: 10px;">Créer un compte</a>
+    <a href="/login" class="btn btn-outline">Se connecter</a>
+</div>
+{% endif %}
+
+<div class="table-container">
+    <h3 style="margin-bottom: 20px;">Derniers blocs</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Fichier</th>
+                <th>Propriétaire</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for block in blocks %}
+            <tr>
+                <td>#{{ block.id }}</td>
+                <td>{{ block.filename }}</td>
+                <td>{{ block.owner }}</td>
+                <td>{{ block.date }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 40px;">Aucun bloc pour le moment</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

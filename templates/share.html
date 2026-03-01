@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 40px auto;">
+    <div class="profile-card">
+        <h2 style="text-align: center;">🔗 Partager {{ filename }}</h2>
+        
+        <div style="margin: 30px 0;">
+            <p>Lien de partage (valable 24h) :</p>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" value="{{ link }}" class="form-control" id="shareLink" readonly>
+                <button onclick="copyLink()" class="btn btn-primary" style="width: auto;">Copier</button>
+            </div>
+            <p style="margin-top: 10px; color: var(--gray);">
+                <i class="fas fa-clock"></i> Expire le {{ expires.strftime('%d/%m/%Y %H:%M') }}
+            </p>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="/my-files" class="btn btn-outline">Retour à mes fichiers</a>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyLink() {
+    var copyText = document.getElementById('shareLink');
+    copyText.select();
+    copyText.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+    alert('Lien copié dans le presse-papier !');
+}
+</script>
+{% endblock %}

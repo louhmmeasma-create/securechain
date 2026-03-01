@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="profile-grid">
+    <!-- Carte Profil -->
+    <div class="profile-card">
+        <div class="profile-header">
+            <div class="profile-avatar-large">
+                {{ profile.username[0]|upper }}
+            </div>
+            <div class="profile-info">
+                <h2>{{ profile.username }}</h2>
+                <p>{{ profile.email }}</p>
+                <p>Membre depuis {{ profile.member_since }}</p>
+            </div>
+        </div>
+
+        <div class="profile-stats">
+            <div class="stat-item">
+                <div class="stat-value">{{ profile.file_count }}</div>
+                <div class="stat-label">Fichiers</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ profile.first_upload }}</div>
+                <div class="stat-label">Premier fichier</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3>Clé publique</h3>
+            <code style="display: block; padding: 15px; background: #f8f9fa; border-radius: 12px; word-break: break-all; margin-top: 10px;">
+                {{ profile.full_public_key }}
+            </code>
+        </div>
+    </div>
+
+    <!-- Carte Sécurité -->
+    <div class="profile-card">
+        <h2 style="margin-bottom: 20px;">Sécurité</h2>
+
+        <!-- 2FA -->
+        <div style="background: #f8f9fa; border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <h3 style="margin-bottom: 5px;">Double authentification</h3>
+                    <p style="color: var(--gray); font-size: 0.9em;">Protection supplémentaire</p>
+                </div>
+                {% if profile.twofa_enabled %}
+                    <span class="badge badge-success">Activée</span>
+                {% else %}
+                    <span class="badge badge-danger">Désactivée</span>
+                {% endif %}
+            </div>
+            
+            {% if profile.twofa_enabled %}
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 12px; margin: 15px 0;">
+                    <p style="color: #2e7d32; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-check-circle"></i>
+                        La 2FA est activée sur votre compte
+                    </p>
+                </div>
+                <a href="/disable-2fa" class="btn btn-outline" style="width: 100%;">
+                    <i class="fas fa-times"></i> Désactiver la 2FA
+                </a>
+            {% else %}
+                <div style="background: #fff3e0; padding: 15px; border-radius: 12px; margin: 15px 0;">
+                    <p style="color: #e65100; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        La 2FA n'est pas activée
+                    </p>
+                </div>
+                <a href="/setup-2fa" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-qrcode"></i> Activer la 2FA
+                </a>
+            {% endif %}
+        </div>
+
+        <!-- Changement mot de passe -->
+        <div style="background: #f8f9fa; border-radius: 16px; padding: 20px;">
+            <h3 style="margin-bottom: 15px;">Changer le mot de passe</h3>
+            <form action="/change-password" method="POST">
+                <div class="form-group">
+                    <label>Ancien mot de passe</label>
+                    <input type="password" name="old_password" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Nouveau mot de passe</label>
+                    <input type="password" name="new_password" class="form-control" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label>Confirmer</label>
+                    <input type="password" name="confirm_password" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Mettre à jour</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

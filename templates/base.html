@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureChain</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🔗</span>
+                <h1>SecureChain</h1>
+            </div>
+
+            <nav class="nav-main">
+                <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+                    <i class="fas fa-home"></i> Accueil
+                </a>
+                
+                {% if session.user_id %}
+                    <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Dashboard
+                    </a>
+                    <a href="/my-files" class="nav-link {% if request.path == '/my-files' %}active{% endif %}">
+                        <i class="fas fa-folder"></i> Mes fichiers
+                    </a>
+                    <a href="/upload-page" class="nav-link {% if request.path == '/upload-page' %}active{% endif %}">
+                        <i class="fas fa-upload"></i> Uploader
+                    </a>
+                {% endif %}
+                
+                <a href="/verify-page" class="nav-link {% if request.path == '/verify-page' %}active{% endif %}">
+                    <i class="fas fa-search"></i> Vérifier
+                </a>
+                <a href="/stats" class="nav-link {% if request.path == '/stats' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i> Stats
+                </a>
+            </nav>
+
+            <div class="profile-menu">
+                {% if session.user_id %}
+                    <button class="profile-button">
+                        <span class="profile-avatar">{{ session.username[0]|upper }}</span>
+                        <span>{{ session.username }}</span>
+                        <i class="fas fa-chevron-down" style="font-size: 0.8em;"></i>
+                    </button>
+                    <div class="profile-dropdown">
+                        <a href="/profile" class="dropdown-item">
+                            <i class="fas fa-user"></i> Mon profil
+                        </a>
+                        <a href="/logout" class="dropdown-item">
+                            <i class="fas fa-sign-out-alt"></i> Déconnexion
+                        </a>
+                    </div>
+                {% else %}
+                    <div style="display: flex; gap: 10px;">
+                        <a href="/login" class="btn btn-outline">Connexion</a>
+                        <a href="/register" class="btn btn-primary">Inscription</a>
+                    </div>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Messages flash avec support HTML -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-circle{% endif %}"></i>
+                        {{ message | safe }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        var socket = io();
+        
+        socket.on('connect', function() {
+            console.log('✅ Connecté au serveur de notifications');
+        });
+        
+        socket.on('user_{{ session.user_id if session.user_id else 0 }}', function(data) {
+            showNotification(data.message, data.type);
+        });
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                               type === 'warning' ? 'fa-exclamation-triangle' : 
+                               'fa-info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: white;
+                color: #333;
+                padding: 15px 25px;
+                border-radius: 12px;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                z-index: 1000;
+                animation: slideIn 0.3s ease;
+                border-left: 4px solid ${type === 'success' ? '#4caf50' : 
+                                         type === 'warning' ? '#ff9800' : '#2196f3'};
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

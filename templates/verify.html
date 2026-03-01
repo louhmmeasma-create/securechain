@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 0 auto;">
+    <div class="card-header">
+        <i class="fas fa-search" style="font-size: 3em; color: var(--primary); margin-bottom: 20px;"></i>
+        <h2>Vérifier un document</h2>
+        <p>Entrez l'ID du bloc pour vérifier l'intégrité</p>
+    </div>
+
+    <form action="/verify-block" method="POST">
+        <div class="form-group">
+            <label>ID du bloc</label>
+            <input type="number" name="block_id" class="form-control" placeholder="Ex: 1" required>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-check-circle"></i> Vérifier
+        </button>
+    </form>
+</div>
+{% endblock %}
