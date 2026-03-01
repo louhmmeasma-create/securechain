@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 0 auto;">
+    <div class="card-header">
+        <i class="fas fa-upload" style="font-size: 3em; color: var(--primary); margin-bottom: 20px;"></i>
+        <h2>Uploader un fichier</h2>
+    </div>
+
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Fichier</label>
+            <input type="file" name="file" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-lock"></i> Uploader et sécuriser
+        </button>
+    </form>
+</div>
+{% endblock %}

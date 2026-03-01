@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 40px auto;">
+    <div class="profile-card">
+        <h2 style="text-align: center; margin-bottom: 30px;">📝 Inscription</h2>
+        
+        <form method="POST">
+            <div class="form-group">
+                <label>Nom d'utilisateur</label>
+                <input type="text" name="username" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Mot de passe</label>
+                <input type="password" name="password" id="password" class="form-control" required minlength="8">
+                <small style="color: var(--gray); display: block; margin-top: 5px;">
+                    Exemple: Secure123 (8 caractères min, 1 majuscule, 1 chiffre)
+                </small>
+            </div>
+            
+            <!-- Indicateur de force -->
+            <div style="margin: 20px 0;">
+                <div style="display: flex; gap: 5px; height: 5px;">
+                    <div id="strength1" style="flex: 1; background: #e0e0e0; border-radius: 5px;"></div>
+                    <div id="strength2" style="flex: 1; background: #e0e0e0; border-radius: 5px;"></div>
+                    <div id="strength3" style="flex: 1; background: #e0e0e0; border-radius: 5px;"></div>
+                </div>
+                <p id="strengthText" style="font-size: 0.9em; margin-top: 5px; color: var(--gray);"></p>
+            </div>
+            
+            <!-- Exigences -->
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 20px 0;">
+                <p style="font-weight: 600; margin-bottom: 10px;">Exigences :</p>
+                <ul style="list-style: none; padding: 0;">
+                    <li id="req-length" style="margin: 5px 0;">❌ Au moins 8 caractères</li>
+                    <li id="req-upper" style="margin: 5px 0;">❌ Au moins une majuscule</li>
+                    <li id="req-number" style="margin: 5px 0;">❌ Au moins un chiffre</li>
+                </ul>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">S'inscrire</button>
+        </form>
+        
+        <p style="text-align: center; margin-top: 20px;">
+            Déjà un compte ? <a href="/login">Connectez-vous</a>
+        </p>
+    </div>
+</div>
+
+<script>
+document.getElementById('password').addEventListener('input', function(e) {
+    const password = e.target.value;
+    
+    const hasLength = password.length >= 8;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    
+    document.getElementById('req-length').innerHTML = hasLength ? '✅ Au moins 8 caractères' : '❌ Au moins 8 caractères';
+    document.getElementById('req-upper').innerHTML = hasUpper ? '✅ Au moins une majuscule' : '❌ Au moins une majuscule';
+    document.getElementById('req-number').innerHTML = hasNumber ? '✅ Au moins un chiffre' : '❌ Au moins un chiffre';
+    
+    const strength1 = document.getElementById('strength1');
+    const strength2 = document.getElementById('strength2');
+    const strength3 = document.getElementById('strength3');
+    const strengthText = document.getElementById('strengthText');
+    
+    strength1.style.background = '#e0e0e0';
+    strength2.style.background = '#e0e0e0';
+    strength3.style.background = '#e0e0e0';
+    
+    if (password.length === 0) {
+        strengthText.textContent = '';
+        return;
+    }
+    
+    let score = 0;
+    if (hasLength) score++;
+    if (hasUpper) score++;
+    if (hasNumber) score++;
+    
+    if (score === 1) {
+        strength1.style.background = '#f44336';
+        strengthText.textContent = 'Faible';
+        strengthText.style.color = '#f44336';
+    } else if (score === 2) {
+        strength1.style.background = '#ff9800';
+        strength2.style.background = '#ff9800';
+        strengthText.textContent = 'Moyen';
+        strengthText.style.color = '#ff9800';
+    } else if (score === 3) {
+        strength1.style.background = '#4caf50';
+        strength2.style.background = '#4caf50';
+        strength3.style.background = '#4caf50';
+        strengthText.textContent = 'Fort';
+        strengthText.style.color = '#4caf50';
+    }
+});
+</script>
+{% endblock %}

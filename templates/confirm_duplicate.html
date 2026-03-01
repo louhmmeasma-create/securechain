@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 40px auto;">
+    <div class="card-header">
+        <i class="fas fa-exclamation-triangle" style="font-size: 3em; color: #ff9800; margin-bottom: 20px;"></i>
+        <h2>Fichier déjà existant</h2>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+        <p>Le fichier <strong>"{{ file.filename }}"</strong> existe déjà dans la blockchain.</p>
+        <p>Voulez-vous l'ajouter quand même ?</p>
+    </div>
+    
+    <div style="display: flex; gap: 20px; justify-content: center;">
+        <form action="/force-upload" method="POST">
+            <button type="submit" class="btn btn-primary" style="width: auto;">
+                <i class="fas fa-check"></i> Oui, ajouter
+            </button>
+        </form>
+        <a href="/my-files" class="btn btn-secondary" style="width: auto;">
+            <i class="fas fa-times"></i> Non, annuler
+        </a>
+    </div>
+</div>
+{% endblock %}

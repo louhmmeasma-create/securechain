@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid-3">
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_files }}</div>
+        <div class="stat-label">Mes fichiers</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_blocks }}</div>
+        <div class="stat-label">Total blocs</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.active_users }}</div>
+        <div class="stat-label">Utilisateurs actifs</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-clock" style="color: var(--primary); margin-right: 10px;"></i>
+        <h2>Activité récente</h2>
+    </div>
+    <p><strong>Dernier fichier :</strong> {{ stats.last_file }} ({{ stats.last_date }})</p>
+</div>
+
+<!-- Graphique -->
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-chart-line" style="color: var(--primary); margin-right: 10px;"></i>
+        <h2>Activité des 7 derniers jours</h2>
+    </div>
+    <canvas id="activityChart" style="max-height: 300px; width: 100%;"></canvas>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Actions rapides</h2>
+    </div>
+    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+        <a href="/upload-page" class="btn btn-primary" style="width: auto; min-width: 150px;">
+            <i class="fas fa-upload"></i> Uploader
+        </a>
+        <a href="/my-files" class="btn btn-secondary" style="width: auto; min-width: 150px;">
+            <i class="fas fa-folder"></i> Mes fichiers
+        </a>
+        <a href="/profile" class="btn btn-secondary" style="width: auto; min-width: 150px;">
+            <i class="fas fa-user"></i> Profil
+        </a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+fetch('/api/upload-stats')
+    .then(res => res.json())
+    .then(data => {
+        if (data.days.length === 0) return;
+        new Chart(document.getElementById('activityChart'), {
+            type: 'line',
+            data: {
+                labels: data.days,
+                datasets: [{
+                    label: 'Uploads',
+                    data: data.counts,
+                    borderColor: '#4361ee',
+                    backgroundColor: 'rgba(67, 97, 238, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true
+                }]
+            }
+        });
+    });
+</script>
+{% endblock %}

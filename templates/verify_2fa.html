@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 40px auto;">
+    <div class="profile-card">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <i class="fas fa-shield-alt" style="font-size: 3em; color: var(--primary);"></i>
+            <h2 style="margin-top: 15px;">Double authentification</h2>
+            <p style="color: var(--gray);">Entrez le code à 6 chiffres de Google Authenticator</p>
+        </div>
+        
+        <form action="/verify-2fa" method="POST">
+            <div class="form-group">
+                <label>Code de vérification</label>
+                <input type="text" name="code" class="form-control" 
+                       placeholder="123456" maxlength="6" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                Vérifier
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
