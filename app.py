@@ -12,6 +12,10 @@ import base64
 import qrcode
 from io import BytesIO
 import re
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
 
 # Niveau 1 : Bcrypt
 from flask_bcrypt import Bcrypt
@@ -26,18 +30,20 @@ from flask_mail import Mail, Message
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.secret_key = 'securechain_super_secret_key_2025'
+
+# ✅ SECRETS DEPUIS .env
+app.secret_key = os.environ.get('SECRET_KEY', 'fallback_secret_key')
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 app.permanent_session_lifetime = timedelta(days=1)
 
-# Configuration email (À MODIFIER AVEC TES INFOS)
+# ✅ Configuration email depuis .env
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'louhemmeasma@gmail.com'
-app.config['MAIL_PASSWORD'] = 'vmtqifjfmgtaimbw'
-app.config['MAIL_DEFAULT_SENDER'] = 'asma.louhmme@gmail.com'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 
 # Initialisation des extensions
 bcrypt = Bcrypt(app)
@@ -60,7 +66,7 @@ def log_action(user_id, action):
         cursor = conn.cursor()
         ip = request.remote_addr
         cursor.execute(
-            "INSERT INTO Logs (user_id, action, ip_address) VALUES (?, ?, ?)",
+            "INSERT INTO Logs (user_id, action, ip_address) VALUES (%s, %s, %s)",
             (user_id, action, ip)
         )
         conn.commit()
@@ -123,9 +129,7 @@ def set_language(lang):
 # CLASSIFICATION DES DOCUMENTS
 # ============================================
 def classify_file(filename):
-    """Classifie un fichier par extension"""
     ext = filename.split('.')[-1].lower() if '.' in filename else ''
-    
     categories = {
         'document': ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'],
         'image': ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'],
@@ -136,7 +140,6 @@ def classify_file(filename):
         'presentation': ['ppt', 'pptx', 'odp'],
         'code': ['py', 'js', 'html', 'css', 'php', 'java', 'cpp', 'c']
     }
-    
     for cat, extensions in categories.items():
         if ext in extensions:
             return cat
@@ -147,12 +150,11 @@ def classify_file(filename):
 # ============================================
 @socketio.on('connect')
 def handle_connect():
-    print(f'Client connecté: {request.sid}')
     emit('notification', {'message': 'Connecté au serveur temps réel'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print(f'Client déconnecté: {request.sid}')
+    pass
 
 def notify_user(user_id, message, type='info'):
     socketio.emit(f'user_{user_id}', {
@@ -160,29 +162,6 @@ def notify_user(user_id, message, type='info'):
         'type': type,
         'timestamp': datetime.now().strftime('%H:%M:%S')
     })
-
-@app.route('/test-notification')
-def test_notification():
-    if 'user_id' in session:
-        notify_user(session['user_id'], 'Ceci est un test de notification!', 'success')
-        return "Notification envoyée!"
-    return "Non connecté"
-
-# ============================================
-# ROUTE POUR TESTER L'EMAIL
-# ============================================
-@app.route('/test-email')
-def test_email():
-    try:
-        msg = Message(
-            subject="Test SecureChain",
-            recipients=['asma.louhmme@gmail.com'],
-            body="Ceci est un test d'envoi d'email."
-        )
-        mail.send(msg)
-        return "✅ Email envoyé avec succès ! Vérifie ta boîte."
-    except Exception as e:
-        return f"❌ Erreur: {str(e)}"
 
 # ============================================
 # INSCRIPTION
@@ -209,13 +188,13 @@ def register():
         conn = get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id FROM Users WHERE email = ?", (email,))
+        cursor.execute("SELECT id FROM Users WHERE email = %s", (email,))
         if cursor.fetchone():
             conn.close()
             flash('❌ Cet email est déjà utilisé', 'error')
             return redirect(url_for('register'))
         
-        cursor.execute("SELECT id FROM Users WHERE username = ?", (username,))
+        cursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
         if cursor.fetchone():
             conn.close()
             flash('❌ Ce nom d\'utilisateur est déjà pris', 'error')
@@ -227,38 +206,25 @@ def register():
         expires = datetime.now() + timedelta(hours=24)
         
         try:
+            # ✅ PostgreSQL : RETURNING id au lieu de @@IDENTITY
             cursor.execute("""
                 INSERT INTO Users (username, email, password, public_key, confirmation_token, token_expires)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
             """, (username, email, hashed_password, public_key.decode(), token, expires))
             conn.commit()
-            
-            cursor.execute("SELECT @@IDENTITY")
             user_id = cursor.fetchone()[0]
             
             with open(f'keys/user_{user_id}_private.pem', 'wb') as f:
                 f.write(private_key)
             
             confirm_link = url_for('confirm_email', token=token, _external=True)
-            
             msg = Message(
                 subject="SecureChain - Confirmez votre email",
                 recipients=[email],
-                body=f"""Bonjour {username},
-
-Merci de vous être inscrit sur SecureChain.
-
-Pour activer votre compte, veuillez cliquer sur le lien ci-dessous :
-{confirm_link}
-
-Ce lien est valable 24 heures.
-
-Cordialement,
-L'équipe SecureChain
-"""
+                body=f"Bonjour {username},\n\nConfirmez votre compte :\n{confirm_link}\n\nLien valable 24h.\n\nL'équipe SecureChain"
             )
             mail.send(msg)
-            
             flash('✅ Inscription réussie ! Un email de confirmation vous a été envoyé.', 'success')
             log_action(user_id, 'Inscription - En attente de confirmation')
             
@@ -278,13 +244,10 @@ L'équipe SecureChain
 def confirm_email(token):
     conn = get_connection()
     cursor = conn.cursor()
-    
     cursor.execute("""
         SELECT id, email, email_confirmed, token_expires 
-        FROM Users 
-        WHERE confirmation_token = ?
+        FROM Users WHERE confirmation_token = %s
     """, (token,))
-    
     user = cursor.fetchone()
     
     if not user:
@@ -296,28 +259,26 @@ def confirm_email(token):
     
     if confirmed:
         conn.close()
-        flash('✅ Email déjà confirmé. Vous pouvez vous connecter.', 'success')
+        flash('✅ Email déjà confirmé.', 'success')
         return redirect(url_for('login'))
     
     if expires < datetime.now():
         conn.close()
-        flash('❌ Lien de confirmation expiré. Veuillez vous réinscrire.', 'error')
+        flash('❌ Lien expiré. Veuillez vous réinscrire.', 'error')
         return redirect(url_for('register'))
     
     cursor.execute("""
-        UPDATE Users 
-        SET email_confirmed = 1, confirmation_token = NULL 
-        WHERE id = ?
+        UPDATE Users SET email_confirmed = true, confirmation_token = NULL WHERE id = %s
     """, (user_id,))
     conn.commit()
     conn.close()
     
     log_action(user_id, 'Email confirmé')
-    flash('✅ Email confirmé avec succès ! Vous pouvez maintenant vous connecter.', 'success')
+    flash('✅ Email confirmé ! Vous pouvez vous connecter.', 'success')
     return redirect(url_for('login'))
 
 # ============================================
-# CONNEXION (avec 2FA)
+# CONNEXION
 # ============================================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -327,13 +288,10 @@ def login():
         
         conn = get_connection()
         cursor = conn.cursor()
-        
         cursor.execute("""
             SELECT id, username, email, password, twofa_secret, twofa_enabled, email_confirmed 
-            FROM Users 
-            WHERE username = ?
+            FROM Users WHERE username = %s
         """, (username,))
-        
         user = cursor.fetchone()
         
         if not user:
@@ -344,14 +302,14 @@ def login():
         user_id, db_username, email, hashed_password, twofa_secret, twofa_enabled, email_confirmed = user
         
         if not bcrypt.check_password_hash(hashed_password, password):
-            log_action(user_id, 'Échec connexion (mot de passe)')
+            log_action(user_id, 'Échec connexion')
             conn.close()
             flash('❌ Identifiants incorrects', 'error')
             return redirect(url_for('login'))
         
         if not email_confirmed:
             conn.close()
-            flash('❌ Veuillez d\'abord confirmer votre email.', 'error')
+            flash('❌ Veuillez confirmer votre email.', 'error')
             return redirect(url_for('login'))
         
         if twofa_enabled:
@@ -364,10 +322,8 @@ def login():
         session['user_id'] = user_id
         session['username'] = db_username
         session['email'] = email
-        
         log_action(user_id, 'Connexion réussie')
         conn.close()
-        
         flash(f'✅ Bienvenue {username}', 'success')
         return redirect(url_for('dashboard'))
     
@@ -384,10 +340,9 @@ def verify_2fa():
     if request.method == 'POST':
         code = request.form['code']
         user_id = session['2fa_user_id']
-        
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+        cursor.execute("SELECT twofa_secret FROM Users WHERE id = %s", (user_id,))
         secret = cursor.fetchone()[0]
         conn.close()
         
@@ -396,11 +351,9 @@ def verify_2fa():
             session['user_id'] = user_id
             session['username'] = session['2fa_username']
             session['email'] = session['2fa_email']
-            
             session.pop('2fa_user_id', None)
             session.pop('2fa_username', None)
             session.pop('2fa_email', None)
-            
             log_action(user_id, 'Connexion 2FA réussie')
             flash('✅ Authentification réussie', 'success')
             return redirect(url_for('dashboard'))
@@ -418,7 +371,7 @@ def logout():
     return redirect(url_for('index'))
 
 # ============================================
-# PROFIL (avec activation 2FA)
+# PROFIL
 # ============================================
 @app.route('/profile')
 @login_required
@@ -426,30 +379,18 @@ def profile():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    
     cursor.execute("""
-        SELECT username, email, public_key, twofa_enabled, email_confirmed,
-               (SELECT COUNT(*) FROM Blocks WHERE user_id = ?) as file_count,
-               (SELECT MIN(timestamp) FROM Blocks WHERE user_id = ?) as first_upload,
-               (SELECT created_at FROM Users WHERE id = ?) as created_at
-        FROM Users 
-        WHERE id = ?
-    """, (user_id, user_id, user_id, user_id))
-    
+        SELECT u.username, u.email, u.public_key, u.twofa_enabled, u.email_confirmed,
+               COUNT(b.id) as file_count,
+               MIN(b.timestamp) as first_upload,
+               u.created_at
+        FROM Users u
+        LEFT JOIN Blocks b ON b.user_id = u.id
+        WHERE u.id = %s
+        GROUP BY u.username, u.email, u.public_key, u.twofa_enabled, u.email_confirmed, u.created_at
+    """, (user_id,))
     user_data = cursor.fetchone()
     conn.close()
-    
-    first_upload = user_data[6]
-    if first_upload:
-        first_upload = first_upload.strftime('%d/%m/%Y')
-    else:
-        first_upload = 'Aucun fichier'
-    
-    created_at = user_data[7]
-    if created_at:
-        created_at = created_at.strftime('%d/%m/%Y')
-    else:
-        created_at = 'N/A'
     
     profile_data = {
         'username': user_data[0],
@@ -457,12 +398,11 @@ def profile():
         'public_key': user_data[2][:100] + '...' if user_data[2] else 'N/A',
         'full_public_key': user_data[2],
         'file_count': user_data[5],
-        'first_upload': first_upload,
-        'member_since': created_at,
+        'first_upload': user_data[6].strftime('%d/%m/%Y') if user_data[6] else 'Aucun fichier',
+        'member_since': user_data[7].strftime('%d/%m/%Y') if user_data[7] else 'N/A',
         'twofa_enabled': user_data[3],
         'email_confirmed': user_data[4]
     }
-    
     return render_template('profile.html', profile=profile_data)
 
 # ============================================
@@ -494,8 +434,7 @@ def change_password():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT password FROM Users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT password FROM Users WHERE id = %s", (user_id,))
     stored_password = cursor.fetchone()[0]
     
     if not bcrypt.check_password_hash(stored_password, old_password):
@@ -504,10 +443,9 @@ def change_password():
         return redirect(url_for('profile'))
     
     new_hashed = bcrypt.generate_password_hash(new_password).decode('utf-8')
-    cursor.execute("UPDATE Users SET password = ? WHERE id = ?", (new_hashed, user_id))
+    cursor.execute("UPDATE Users SET password = %s WHERE id = %s", (new_hashed, user_id))
     conn.commit()
     conn.close()
-    
     log_action(user_id, 'Changement mot de passe')
     flash('✅ Mot de passe modifié avec succès', 'success')
     return redirect(url_for('profile'))
@@ -520,32 +458,24 @@ def change_password():
 def setup_2fa():
     user_id = session['user_id']
     username = session['username']
-    
     conn = get_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT twofa_secret FROM Users WHERE id = %s", (user_id,))
     existing = cursor.fetchone()
     
     if existing and existing[0]:
         secret = existing[0]
     else:
         secret = pyotp.random_base32()
-        cursor.execute("UPDATE Users SET twofa_secret = ? WHERE id = ?", (secret, user_id))
+        cursor.execute("UPDATE Users SET twofa_secret = %s WHERE id = %s", (secret, user_id))
         conn.commit()
-    
     conn.close()
     
-    uri = pyotp.totp.TOTP(secret).provisioning_uri(
-        name=username,
-        issuer_name="SecureChain"
-    )
-    
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name="SecureChain")
     qr = qrcode.make(uri)
     buffer = BytesIO()
     qr.save(buffer, format='PNG')
     qr_base64 = base64.b64encode(buffer.getvalue()).decode()
-    
     return render_template('setup_2fa.html', secret=secret, qr_code=qr_base64)
 
 @app.route('/verify-2fa-setup', methods=['POST'])
@@ -553,36 +483,31 @@ def setup_2fa():
 def verify_2fa_setup():
     code = request.form['code']
     user_id = session['user_id']
-    
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT twofa_secret FROM Users WHERE id = %s", (user_id,))
     secret = cursor.fetchone()[0]
-    
     totp = pyotp.TOTP(secret)
     if totp.verify(code):
-        cursor.execute("UPDATE Users SET twofa_enabled = 1 WHERE id = ?", (user_id,))
+        cursor.execute("UPDATE Users SET twofa_enabled = true WHERE id = %s", (user_id,))
         conn.commit()
         conn.close()
         log_action(user_id, '2FA activée')
         flash('✅ 2FA activée avec succès', 'success')
     else:
         conn.close()
-        flash('❌ Code invalide. Veuillez réessayer.', 'error')
-    
+        flash('❌ Code invalide.', 'error')
     return redirect(url_for('profile'))
 
 @app.route('/disable-2fa')
 @login_required
 def disable_2fa():
     user_id = session['user_id']
-    
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE Users SET twofa_enabled = 0, twofa_secret = NULL WHERE id = ?", (user_id,))
+    cursor.execute("UPDATE Users SET twofa_enabled = false, twofa_secret = NULL WHERE id = %s", (user_id,))
     conn.commit()
     conn.close()
-    
     log_action(user_id, '2FA désactivée')
     flash('✅ 2FA désactivée', 'success')
     return redirect(url_for('profile'))
@@ -594,10 +519,9 @@ def disable_2fa():
 @login_required
 def share_file(block_id):
     user_id = session['user_id']
-    
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT filename, user_id FROM Blocks WHERE id = ?", (block_id,))
+    cursor.execute("SELECT filename, user_id FROM Blocks WHERE id = %s", (block_id,))
     block = cursor.fetchone()
     
     if not block or block[1] != user_id:
@@ -606,33 +530,27 @@ def share_file(block_id):
         return redirect(url_for('my_files'))
     
     filename = block[0]
-    
     token = secrets.token_urlsafe(32)
     expires = datetime.now() + timedelta(hours=24)
-    
     cursor.execute("""
-        INSERT INTO Shares (block_id, token, expires_at, created_by)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO Shares (block_id, token, expires_at, created_by) VALUES (%s, %s, %s, %s)
     """, (block_id, token, expires, user_id))
     conn.commit()
     conn.close()
     
     share_link = url_for('access_shared', token=token, _external=True)
-    
     return render_template('share.html', link=share_link, filename=filename, expires=expires)
 
 @app.route('/shared/<token>')
 def access_shared(token):
     conn = get_connection()
     cursor = conn.cursor()
-    
     cursor.execute("""
         SELECT s.block_id, b.filename, b.file_hash, s.expires_at
         FROM Shares s
         JOIN Blocks b ON s.block_id = b.id
-        WHERE s.token = ? AND s.expires_at > GETDATE()
+        WHERE s.token = %s AND s.expires_at > NOW()
     """, (token,))
-    
     share = cursor.fetchone()
     conn.close()
     
@@ -641,7 +559,6 @@ def access_shared(token):
         return redirect(url_for('index'))
     
     block_id, filename, file_hash, expires = share
-    
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.enc")
     meta_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.meta")
     
@@ -651,16 +568,10 @@ def access_shared(token):
         meta = pickle.load(f)
     
     data = decrypt_file(encrypted, meta['key'], meta['nonce'], meta['tag'])
-    
-    return send_file(
-        io.BytesIO(data),
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/octet-stream'
-    )
+    return send_file(io.BytesIO(data), as_attachment=True, download_name=filename, mimetype='application/octet-stream')
 
 # ============================================
-# STATISTIQUES DASHBOARD
+# DASHBOARD
 # ============================================
 @app.route('/dashboard')
 @login_required
@@ -668,19 +579,14 @@ def dashboard():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT COUNT(*) FROM Blocks WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT COUNT(*) FROM Blocks WHERE user_id = %s", (user_id,))
     total_files = cursor.fetchone()[0]
-    
     cursor.execute("SELECT COUNT(*) FROM Blocks")
     total_blocks = cursor.fetchone()[0]
-    
     cursor.execute("SELECT COUNT(DISTINCT user_id) FROM Blocks")
     active_users = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT filename, timestamp FROM Blocks WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
+    cursor.execute("SELECT filename, timestamp FROM Blocks WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1", (user_id,))
     recent = cursor.fetchone()
-    
     conn.close()
     
     stats = {
@@ -690,95 +596,68 @@ def dashboard():
         'last_file': recent[0] if recent else 'Aucun',
         'last_date': recent[1].strftime('%Y-%m-%d') if recent else 'N/A'
     }
-    
     return render_template('dashboard.html', stats=stats)
 
 @app.route('/api/upload-stats')
 def upload_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    
+    # ✅ PostgreSQL : NOW() - INTERVAL au lieu de DATEADD
     cursor.execute("""
-        SELECT 
-            CAST(timestamp AS DATE) as date,
-            COUNT(*) as count
+        SELECT DATE(timestamp) as date, COUNT(*) as count
         FROM Blocks
-        WHERE timestamp >= DATEADD(day, -7, GETDATE())
-        GROUP BY CAST(timestamp AS DATE)
+        WHERE timestamp >= NOW() - INTERVAL '7 days'
+        GROUP BY DATE(timestamp)
         ORDER BY date
     """)
-    
     data = cursor.fetchall()
     conn.close()
-    
     days = [row[0].strftime('%a') for row in data]
     counts = [row[1] for row in data]
-    
     return jsonify({'days': days, 'counts': counts})
 
 @app.route('/api/user-stats')
 def user_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    
+    # ✅ PostgreSQL : LIMIT au lieu de TOP
     cursor.execute("""
-        SELECT TOP 5 u.username, COUNT(b.id) as file_count
+        SELECT u.username, COUNT(b.id) as file_count
         FROM Users u
         LEFT JOIN Blocks b ON u.id = b.user_id
         GROUP BY u.username
         ORDER BY file_count DESC
+        LIMIT 5
     """)
-    
     users = []
     counts = []
     for row in cursor.fetchall():
         users.append(row[0])
         counts.append(row[1])
-    
     cursor.execute("SELECT COUNT(*) FROM Users")
     total_users = cursor.fetchone()[0]
-    
     cursor.execute("SELECT COUNT(*) FROM Blocks")
     total_blocks = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT SUM(DATALENGTH(file_hash)) FROM Blocks")
-    total_size = cursor.fetchone()[0] or 0
-    
     conn.close()
-    
-    return jsonify({
-        'users': users,
-        'counts': counts,
-        'total_users': total_users,
-        'total_blocks': total_blocks,
-        'total_size_mb': round(total_size / (1024 * 1024), 2)
-    })
+    return jsonify({'users': users, 'counts': counts, 'total_users': total_users, 'total_blocks': total_blocks})
 
 # ============================================
-# STATISTIQUES AVEC CLASSIFICATION
+# STATISTIQUES
 # ============================================
 @app.route('/stats')
 @login_required
 def stats():
-    """Page des statistiques de classification"""
     conn = get_connection()
     cursor = conn.cursor()
-    
     cursor.execute("SELECT filename FROM Blocks")
     files = cursor.fetchall()
     conn.close()
-    
     categories = {}
     total = len(files)
-    
     for file in files:
         cat = classify_file(file[0])
         categories[cat] = categories.get(cat, 0) + 1
-    
-    return render_template('stats.html', stats={
-        'total_files': total,
-        'categories': categories
-    })
+    return render_template('stats.html', stats={'total_files': total, 'categories': categories})
 
 # ============================================
 # MES FICHIERS
@@ -789,14 +668,10 @@ def my_files():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    
     cursor.execute("""
         SELECT id, filename, file_hash, timestamp 
-        FROM Blocks 
-        WHERE user_id = ? 
-        ORDER BY timestamp DESC
+        FROM Blocks WHERE user_id = %s ORDER BY timestamp DESC
     """, (user_id,))
-    
     files = []
     for row in cursor.fetchall():
         files.append({
@@ -806,12 +681,11 @@ def my_files():
             'full_hash': row[2],
             'date': row[3].strftime('%Y-%m-%d %H:%M') if row[3] else 'N/A'
         })
-    
     conn.close()
     return render_template('my_files.html', files=files)
 
 # ============================================
-# UPLOAD (AVEC GESTION DES DOUBLONS)
+# UPLOAD
 # ============================================
 @app.route('/upload-page')
 @login_required
@@ -824,97 +698,60 @@ def upload():
     if 'file' not in request.files:
         flash('❌ Aucun fichier', 'error')
         return redirect(url_for('upload_page'))
-    
     file = request.files['file']
     if file.filename == '':
         flash('❌ Fichier vide', 'error')
         return redirect(url_for('upload_page'))
-    
     data = file.read()
     filename = file.filename
     file_hash = hash_data(data)
-    
-    # ✅ VÉRIFICATION SI LE FICHIER EXISTE DÉJÀ
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM Blocks WHERE file_hash = ?", (file_hash,))
+    cursor.execute("SELECT id FROM Blocks WHERE file_hash = %s", (file_hash,))
     existing = cursor.fetchone()
     conn.close()
-    
     if existing:
-        # Stocker les infos en session
-        session['pending_upload'] = {
-            'data': data,
-            'filename': filename,
-            'file_hash': file_hash
-        }
-        
-        # Message avec boutons HTML intégrés
-        flash(f'''
-        <div style="text-align: center;">
-            <p style="font-size: 1.1em; margin-bottom: 15px;">Le fichier <strong>"{filename}"</strong> existe déjà dans la blockchain.</p>
-            <p style="margin-bottom: 20px;">Voulez-vous l'ajouter quand même ?</p>
-            <div style="display: flex; gap: 15px; justify-content: center;">
-                <a href="/force-upload" class="btn btn-primary" style="padding: 10px 25px; text-decoration: none;">✅ Oui, ajouter</a>
-                <a href="/my-files" class="btn btn-secondary" style="padding: 10px 25px; text-decoration: none;">❌ Non, annuler</a>
-            </div>
-        </div>
-        ''', 'warning')
+        session['pending_upload'] = {'data': data, 'filename': filename, 'file_hash': file_hash}
+        flash(f'⚠️ Le fichier "{filename}" existe déjà. <a href="/force-upload">Cliquez ici pour l\'ajouter quand même</a>', 'warning')
         return redirect(url_for('my_files'))
-    
-    # Upload normal (pas de doublon)
     return process_upload(data, filename, file_hash)
 
 @app.route('/force-upload')
 @login_required
 def force_upload():
-    """Force l'upload d'un fichier en doublon"""
     if 'pending_upload' not in session:
         return redirect(url_for('upload_page'))
-    
     pending = session['pending_upload']
     result = process_upload(pending['data'], pending['filename'], pending['file_hash'])
     session.pop('pending_upload', None)
     return result
 
 def process_upload(data, filename, file_hash):
-    """Fonction commune pour traiter l'upload"""
     encrypted, key, nonce, tag = encrypt_file(data)
-    
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.enc")
     with open(file_path, 'wb') as f:
         f.write(encrypted)
-    
     meta_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.meta")
     with open(meta_path, 'wb') as f:
         pickle.dump({'key': key, 'nonce': nonce, 'tag': tag}, f)
-    
     user_id = session['user_id']
     with open(f'keys/user_{user_id}_private.pem', 'rb') as f:
         private_key = f.read()
-    
     signature = sign_data(file_hash.encode(), private_key)
-    
     conn = get_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT TOP 1 file_hash FROM Blocks ORDER BY id DESC")
+    # ✅ PostgreSQL : LIMIT 1 au lieu de TOP 1, RETURNING id
+    cursor.execute("SELECT file_hash FROM Blocks ORDER BY id DESC LIMIT 1")
     last = cursor.fetchone()
     previous_hash = last[0] if last else "0"
-    
-    cursor.execute("SELECT COUNT(*) FROM Blocks")
-    index = cursor.fetchone()[0] + 1
-    
-    cursor.execute(
-        "INSERT INTO Blocks (filename, file_hash, previous_hash, signature, user_id) VALUES (?, ?, ?, ?, ?)",
-        (filename, file_hash, previous_hash, signature, user_id)
-    )
+    cursor.execute("""
+        INSERT INTO Blocks (filename, file_hash, previous_hash, signature, user_id)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
+    """, (filename, file_hash, previous_hash, signature, user_id))
     conn.commit()
-    
-    cursor.execute("SELECT @@IDENTITY")
     block_id = cursor.fetchone()[0]
     conn.close()
-    
     log_action(user_id, f'Upload fichier #{block_id}')
     notify_user(user_id, f'✅ Fichier "{filename}" sécurisé!', 'success')
     flash(f'✅ Fichier sécurisé - Bloc #{block_id}', 'success')
@@ -928,36 +765,24 @@ def process_upload(data, filename, file_hash):
 def download(block_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT filename, file_hash, user_id FROM Blocks WHERE id = ?", (block_id,))
+    cursor.execute("SELECT filename, file_hash, user_id FROM Blocks WHERE id = %s", (block_id,))
     block = cursor.fetchone()
     conn.close()
-    
     if not block:
         flash('❌ Bloc introuvable', 'error')
         return redirect(url_for('my_files'))
-    
     filename, file_hash, owner_id = block
-    
     if owner_id != session['user_id']:
         flash('❌ Accès non autorisé', 'error')
         return redirect(url_for('my_files'))
-    
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.enc")
     meta_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.meta")
-    
     with open(file_path, 'rb') as f:
         encrypted = f.read()
     with open(meta_path, 'rb') as f:
         meta = pickle.load(f)
-    
     data = decrypt_file(encrypted, meta['key'], meta['nonce'], meta['tag'])
-    
-    return send_file(
-        io.BytesIO(data),
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/octet-stream'
-    )
+    return send_file(io.BytesIO(data), as_attachment=True, download_name=filename, mimetype='application/octet-stream')
 
 # ============================================
 # VÉRIFICATION
@@ -970,45 +795,32 @@ def verify_page():
 def verify(block_id):
     conn = get_connection()
     cursor = conn.cursor()
-    
     cursor.execute("""
         SELECT b.filename, b.file_hash, b.user_id, b.signature, b.timestamp, u.username
-        FROM Blocks b
-        JOIN Users u ON b.user_id = u.id
-        WHERE b.id = ?
+        FROM Blocks b JOIN Users u ON b.user_id = u.id WHERE b.id = %s
     """, (block_id,))
-    
     block = cursor.fetchone()
-    
     if not block:
         conn.close()
         flash('❌ Bloc introuvable', 'error')
         return redirect(url_for('verify_page'))
-    
     filename, stored_hash, user_id, signature, timestamp, owner = block
-    
-    cursor.execute("SELECT public_key FROM Users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT public_key FROM Users WHERE id = %s", (user_id,))
     user = cursor.fetchone()
     conn.close()
-    
     if not user:
         flash('❌ Utilisateur introuvable', 'error')
         return redirect(url_for('verify_page'))
-    
     public_key = user[0].encode()
-    
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{stored_hash}.enc")
     meta_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{stored_hash}.meta")
-    
     if not os.path.exists(file_path) or not os.path.exists(meta_path):
         flash('❌ Fichier introuvable', 'error')
         return redirect(url_for('verify_page'))
-    
     with open(file_path, 'rb') as f:
         encrypted = f.read()
     with open(meta_path, 'rb') as f:
         meta = pickle.load(f)
-    
     try:
         data = decrypt_file(encrypted, meta['key'], meta['nonce'], meta['tag'])
         new_hash = hash_data(data)
@@ -1016,10 +828,8 @@ def verify(block_id):
     except Exception:
         decrypt_ok = False
         new_hash = None
-    
     signature_valid = verify_signature(stored_hash.encode(), signature, public_key)
     hash_valid = (new_hash == stored_hash) if decrypt_ok else False
-    
     if not decrypt_ok:
         flash(f'❌ Bloc #{block_id} : Fichier corrompu', 'error')
     elif not signature_valid:
@@ -1028,7 +838,6 @@ def verify(block_id):
         flash(f'❌ Bloc #{block_id} : Document modifié', 'error')
     else:
         flash(f'✅ Bloc #{block_id} : Document intact et authentique', 'success')
-    
     return redirect(url_for('verify_page'))
 
 @app.route('/verify-block', methods=['POST'])
@@ -1043,16 +852,12 @@ def verify_block():
 def index():
     if 'lang' not in session:
         session['lang'] = 'fr'
-    
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT b.id, b.filename, b.file_hash, b.timestamp, u.username 
-        FROM Blocks b
-        JOIN Users u ON b.user_id = u.id
-        ORDER BY b.id DESC
+        FROM Blocks b JOIN Users u ON b.user_id = u.id ORDER BY b.id DESC
     """)
-    
     blocks = []
     for row in cursor.fetchall():
         blocks.append({
@@ -1063,11 +868,10 @@ def index():
             'owner': row[4]
         })
     conn.close()
-    
     return render_template('index.html', blocks=blocks)
 
 # ============================================
 # LANCEMENT
 # ============================================
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=False)

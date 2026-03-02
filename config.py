@@ -1,10 +1,12 @@
-import pyodbc
+import psycopg2
+import os
 
 def get_connection():
-    conn = pyodbc.connect(
-        'DRIVER={ODBC Driver 17 for SQL Server};'
-        'SERVER=DESKTOP-7A08N1S\\SQLEXPRESS;'
-        'DATABASE=SecureChain;'
-        'Trusted_Connection=yes;'
-    )
+    """Connexion PostgreSQL via variable d'environnement DATABASE_URL"""
+    database_url = os.environ.get('DATABASE_URL')
+    
+    if not database_url:
+        raise Exception("❌ DATABASE_URL non définie dans les variables d'environnement")
+    
+    conn = psycopg2.connect(database_url)
     return conn

@@ -1,0 +1,24 @@
+notepad .gitignore
+```
+
+Le Bloc-notes va s'ouvrir. **Efface tout** ce qu'il y a dedans et **colle ce contenu** :
+```
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+env/
+.venv/
+.env
+*.db
+database.db
+instance/
+keys/
+*.pem
+*.key
+uploads/
+*.log
+.DS_Store
+Thumbs.db
+
+

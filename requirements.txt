@@ -1,3 +1,11 @@
 flask
+flask-bcrypt
+flask-mail
+flask-socketio
 pycryptodome
-pyodbc
+psycopg2-binary
+pyotp
+qrcode[pil]
+python-dotenv
+gunicorn
+eventlet
