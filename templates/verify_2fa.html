@@ -1,24 +1,33 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div style="max-width: 400px; margin: 40px auto;">
-    <div class="profile-card">
-        <div style="text-align: center; margin-bottom: 30px;">
-            <i class="fas fa-shield-alt" style="font-size: 3em; color: var(--primary);"></i>
-            <h2 style="margin-top: 15px;">Double authentification</h2>
-            <p style="color: var(--gray);">Entrez le code à 6 chiffres de Google Authenticator</p>
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div style="text-align:center; margin-bottom:28px;">
+            <div style="width:64px; height:64px; background:rgba(56,189,248,0.1); border:1px solid var(--border-mid); border-radius:var(--r-xl); display:inline-flex; align-items:center; justify-content:center; font-size:1.8em; margin-bottom:16px; box-shadow:var(--shadow-glow);">
+                🔐
+            </div>
+            <h2>Double authentification</h2>
+            <p class="auth-sub">Entrez le code à 6 chiffres de votre application Authenticator</p>
         </div>
-        
+
         <form action="/verify-2fa" method="POST">
             <div class="form-group">
-                <label>Code de vérification</label>
-                <input type="text" name="code" class="form-control" 
-                       placeholder="123456" maxlength="6" required>
+                <label style="text-align:center; display:block; margin-bottom:12px;">Code de vérification</label>
+                <input type="text" name="code" class="form-control"
+                       placeholder="• • • • • •" maxlength="6" required autofocus
+                       style="text-align:center; font-family:'JetBrains Mono',monospace; font-size:1.6em; letter-spacing:0.3em; padding:18px;">
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">
-                Vérifier
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px;">
+                <i class="fas fa-arrow-right-to-bracket"></i> Confirmer l'accès
             </button>
         </form>
+
+        <div style="margin-top:24px; padding:14px 18px; background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--r-md); display:flex; gap:10px; align-items:flex-start;">
+            <i class="fas fa-mobile-screen-button" style="color:var(--cyan); margin-top:2px; flex-shrink:0;"></i>
+            <p style="font-size:0.83em; color:var(--text-3); line-height:1.6;">
+                Ouvrez <strong style="color:var(--text-2);">Google Authenticator</strong> et entrez le code à 6 chiffres affiché pour SecureChain.
+            </p>
+        </div>
     </div>
 </div>
 {% endblock %}

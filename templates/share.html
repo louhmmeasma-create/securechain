@@ -1,34 +1,49 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div style="max-width: 600px; margin: 40px auto;">
-    <div class="profile-card">
-        <h2 style="text-align: center;">🔗 Partager {{ filename }}</h2>
-        
-        <div style="margin: 30px 0;">
-            <p>Lien de partage (valable 24h) :</p>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" value="{{ link }}" class="form-control" id="shareLink" readonly>
-                <button onclick="copyLink()" class="btn btn-primary" style="width: auto;">Copier</button>
+<div style="max-width:560px; margin:48px auto;">
+    <div class="card">
+        <div class="card-header" style="flex-direction:column; align-items:center; text-align:center; padding-bottom:24px;">
+            <div style="width:64px; height:64px; background:rgba(56,189,248,0.1); border:1px solid var(--border-mid); border-radius:var(--r-lg); display:flex; align-items:center; justify-content:center; font-size:1.8em; margin-bottom:16px;">🔗</div>
+            <div>
+                <h2>Partager un fichier</h2>
+                <p>{{ filename }}</p>
             </div>
-            <p style="margin-top: 10px; color: var(--gray);">
-                <i class="fas fa-clock"></i> Expire le {{ expires.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+
+        <div>
+            <p style="font-size:0.88em; color:var(--text-3); margin-bottom:10px; font-weight:600;">
+                <i class="fas fa-link" style="color:var(--cyan); margin-right:6px;"></i> Lien de partage (valable 24h)
+            </p>
+            <div class="share-link-group">
+                <input type="text" value="{{ link }}" class="form-control" id="shareLink" readonly>
+                <button onclick="copyLink()" class="btn btn-primary" style="white-space:nowrap;">
+                    <i class="fas fa-copy"></i> Copier
+                </button>
+            </div>
+            <p style="font-size:0.83em; color:var(--text-3); margin-top:10px;">
+                <i class="fas fa-clock" style="color:var(--amber);"></i>
+                Expire le {{ expires.strftime('%d/%m/%Y à %H:%M') }}
             </p>
         </div>
-        
-        <div style="text-align: center;">
-            <a href="/my-files" class="btn btn-outline">Retour à mes fichiers</a>
+
+        <div style="text-align:center; margin-top:28px; padding-top:20px; border-top:1px solid var(--border);">
+            <a href="/my-files" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Retour à mes fichiers
+            </a>
         </div>
     </div>
 </div>
 
 <script>
 function copyLink() {
-    var copyText = document.getElementById('shareLink');
-    copyText.select();
-    copyText.setSelectionRange(0, 99999);
-    document.execCommand('copy');
-    alert('Lien copié dans le presse-papier !');
+    const input = document.getElementById('shareLink');
+    input.select(); input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value).then(() => {
+        showToast('Lien copié dans le presse-papier !', 'success');
+    }).catch(() => {
+        document.execCommand('copy');
+        showToast('Lien copié !', 'success');
+    });
 }
 </script>
 {% endblock %}

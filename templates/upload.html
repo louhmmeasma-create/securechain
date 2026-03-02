@@ -1,20 +1,73 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card" style="max-width: 500px; margin: 0 auto;">
-    <div class="card-header">
-        <i class="fas fa-upload" style="font-size: 3em; color: var(--primary); margin-bottom: 20px;"></i>
-        <h2>Uploader un fichier</h2>
+<div style="max-width:560px; margin:0 auto;">
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-arrow-up-from-bracket"></i>
+            <div>
+                <h2>Uploader un fichier</h2>
+                <p>Chiffrement AES-256 et enregistrement blockchain</p>
+            </div>
+        </div>
+
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            <!-- Drag & drop zone -->
+            <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <i class="fas fa-cloud-arrow-up"></i>
+                <h3>Glissez votre fichier ici</h3>
+                <p>ou cliquez pour parcourir</p>
+                <p style="margin-top:10px; font-size:0.8em; color:var(--text-3);">Tout type de fichier accepté</p>
+            </div>
+
+            <input type="file" name="file" id="fileInput" style="display:none;" required
+                   onchange="updateFileName(this)">
+            <p id="fileName" style="text-align:center; font-size:0.88em; color:var(--cyan); margin:-10px 0 20px; display:none;">
+                <i class="fas fa-file-circle-check"></i> <span></span>
+            </p>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;">
+                <i class="fas fa-lock"></i> Chiffrer et sécuriser
+            </button>
+        </form>
     </div>
 
-    <form action="/upload" method="POST" enctype="multipart/form-data">
-        <div class="form-group">
-            <label>Fichier</label>
-            <input type="file" name="file" class="form-control" required>
+    <!-- Info block -->
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:4px;">
+        <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; text-align:center;">
+            <div style="font-size:1.4em; margin-bottom:6px;">🔐</div>
+            <div style="font-size:0.8em; color:var(--text-3); font-weight:600;">AES-256</div>
         </div>
-        <button type="submit" class="btn btn-primary">
-            <i class="fas fa-lock"></i> Uploader et sécuriser
-        </button>
-    </form>
+        <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; text-align:center;">
+            <div style="font-size:1.4em; margin-bottom:6px;">🖋️</div>
+            <div style="font-size:0.8em; color:var(--text-3); font-weight:600;">RSA Signature</div>
+        </div>
+        <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; text-align:center;">
+            <div style="font-size:1.4em; margin-bottom:6px;">⛓️</div>
+            <div style="font-size:0.8em; color:var(--text-3); font-weight:600;">Blockchain</div>
+        </div>
+    </div>
 </div>
+
+<script>
+function updateFileName(input) {
+    const fn = document.getElementById('fileName');
+    if (input.files && input.files[0]) {
+        fn.querySelector('span').textContent = input.files[0].name;
+        fn.style.display = 'block';
+        document.getElementById('dropZone').style.borderColor = 'var(--cyan)';
+    }
+}
+const dz = document.getElementById('dropZone');
+['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('drag-over'); }));
+['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('drag-over'); }));
+dz.addEventListener('drop', ev => {
+    const f = ev.dataTransfer.files[0];
+    if (f) {
+        const dt = new DataTransfer(); dt.items.add(f);
+        document.getElementById('fileInput').files = dt.files;
+        updateFileName(document.getElementById('fileInput'));
+    }
+});
+</script>
 {% endblock %}

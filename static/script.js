@@ -1,47 +1,49 @@
-// Gestion du thème sombre/clair
-document.addEventListener('DOMContentLoaded', function() {
-    // Vérifier le thème sauvegardé
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    
-    // Mettre à jour l'icône
-    updateThemeIcon(savedTheme);
-});
+// ═══════════════════════════════════════════
+// SecureChain — main.js
+// ═══════════════════════════════════════════
 
-function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    updateThemeIcon(newTheme);
-}
+document.addEventListener('DOMContentLoaded', () => {
 
-function updateThemeIcon(theme) {
-    const toggle = document.querySelector('.theme-toggle');
-    if (toggle) {
-        toggle.textContent = theme === 'light' ? '🌙' : '☀️';
-    }
-}
+    // ── Scroll reveal ──────────────────────
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
 
-// Animations au scroll
-const observerOptions = {
-    threshold: 0.1,
-    rootMargin: '0px 0px -50px 0px'
-};
+    document.querySelectorAll('.card, .main-card, .feature-card, .stat-card, .table-container').forEach((el, i) => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(22px)';
+        el.style.transition = `opacity 0.55s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s, transform 0.55s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s`;
+        observer.observe(el);
+    });
 
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.style.opacity = '1';
-            entry.target.style.transform = 'translateY(0)';
+    // ── Auto-dismiss flash alerts ──────────
+    document.querySelectorAll('.alert').forEach(alert => {
+        setTimeout(() => {
+            alert.style.transition = 'opacity 0.4s, transform 0.4s';
+            alert.style.opacity = '0';
+            alert.style.transform = 'translateY(-8px)';
+            setTimeout(() => alert.remove(), 400);
+        }, 5000);
+    });
+
+    // ── 6-digit code auto-format ───────────
+    document.querySelectorAll('input[maxlength="6"]').forEach(input => {
+        input.addEventListener('input', () => {
+            input.value = input.value.replace(/\D/g, '').slice(0, 6);
+        });
+    });
+
+    // ── Active nav highlight ───────────────
+    const currentPath = window.location.pathname;
+    document.querySelectorAll('.nav-link').forEach(link => {
+        if (link.getAttribute('href') === currentPath) {
+            link.classList.add('active');
         }
     });
-}, observerOptions);
-
-document.querySelectorAll('.card, .table-container').forEach(el => {
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(20px)';
-    el.style.transition = 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)';
-    observer.observe(el);
 });

@@ -35,8 +35,8 @@ app.permanent_session_lifetime = timedelta(days=1)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'asma.louhmme@gmail.com'
-app.config['MAIL_PASSWORD'] = 'ton_mot_de_passe_application'
+app.config['MAIL_USERNAME'] = 'louhemmeasma@gmail.com'
+app.config['MAIL_PASSWORD'] = 'vmtqifjfmgtaimbw'
 app.config['MAIL_DEFAULT_SENDER'] = 'asma.louhmme@gmail.com'
 
 # Initialisation des extensions

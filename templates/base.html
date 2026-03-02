@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SecureChain</title>
+    <title>SecureChain — Sécurisation blockchain</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
+
+        <!-- ── NAVBAR ── -->
         <header class="header">
-            <div class="logo">
-                <span class="logo-icon">🔗</span>
+            <a href="/" class="logo">
+                <div class="logo-icon">⛓️</div>
                 <h1>SecureChain</h1>
-            </div>
+            </a>
 
             <nav class="nav-main">
                 <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
-                    <i class="fas fa-home"></i> Accueil
+                    <i class="fas fa-house"></i> Accueil
                 </a>
-                
                 {% if session.user_id %}
                     <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
                         <i class="fas fa-chart-line"></i> Dashboard
                     </a>
                     <a href="/my-files" class="nav-link {% if request.path == '/my-files' %}active{% endif %}">
-                        <i class="fas fa-folder"></i> Mes fichiers
+                        <i class="fas fa-folder-open"></i> Fichiers
                     </a>
                     <a href="/upload-page" class="nav-link {% if request.path == '/upload-page' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Uploader
+                        <i class="fas fa-arrow-up-from-bracket"></i> Upload
                     </a>
                 {% endif %}
-                
                 <a href="/verify-page" class="nav-link {% if request.path == '/verify-page' %}active{% endif %}">
-                    <i class="fas fa-search"></i> Vérifier
+                    <i class="fas fa-shield-halved"></i> Vérifier
                 </a>
                 <a href="/stats" class="nav-link {% if request.path == '/stats' %}active{% endif %}">
                     <i class="fas fa-chart-pie"></i> Stats
@@ -46,100 +46,60 @@
                     <button class="profile-button">
                         <span class="profile-avatar">{{ session.username[0]|upper }}</span>
                         <span>{{ session.username }}</span>
-                        <i class="fas fa-chevron-down" style="font-size: 0.8em;"></i>
+                        <i class="fas fa-chevron-down" style="font-size:0.75em; color:var(--text-3);"></i>
                     </button>
                     <div class="profile-dropdown">
                         <a href="/profile" class="dropdown-item">
-                            <i class="fas fa-user"></i> Mon profil
+                            <i class="fas fa-circle-user"></i> Mon profil
                         </a>
-                        <a href="/logout" class="dropdown-item">
-                            <i class="fas fa-sign-out-alt"></i> Déconnexion
+                        <a href="/logout" class="dropdown-item" style="color:var(--rose);">
+                            <i class="fas fa-arrow-right-from-bracket"></i> Déconnexion
                         </a>
                     </div>
                 {% else %}
-                    <div style="display: flex; gap: 10px;">
-                        <a href="/login" class="btn btn-outline">Connexion</a>
-                        <a href="/register" class="btn btn-primary">Inscription</a>
+                    <div style="display:flex; gap:10px;">
+                        <a href="/login"    class="btn btn-outline" style="padding:9px 20px;">Connexion</a>
+                        <a href="/register" class="btn btn-primary" style="padding:9px 20px;">Inscription</a>
                     </div>
                 {% endif %}
             </div>
         </header>
 
-        <!-- Messages flash avec support HTML -->
+        <!-- ── FLASH MESSAGES ── -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }}">
-                        <i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-circle{% endif %}"></i>
+                        <i class="fas {% if category == 'success' %}fa-circle-check{% elif category == 'warning' %}fa-triangle-exclamation{% else %}fa-circle-exclamation{% endif %}"></i>
                         {{ message | safe }}
                     </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
 
+        <!-- ── PAGE CONTENT ── -->
         {% block content %}{% endblock %}
-    </div>
+
+    </div><!-- /.container -->
 
     <!-- Socket.IO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
     <script>
         var socket = io();
-        
-        socket.on('connect', function() {
-            console.log('✅ Connecté au serveur de notifications');
-        });
-        
         socket.on('user_{{ session.user_id if session.user_id else 0 }}', function(data) {
-            showNotification(data.message, data.type);
+            showToast(data.message, data.type || 'info');
         });
-        
-        function showNotification(message, type) {
-            const notification = document.createElement('div');
-            notification.innerHTML = `
-                <i class="fas ${type === 'success' ? 'fa-check-circle' : 
-                               type === 'warning' ? 'fa-exclamation-triangle' : 
-                               'fa-info-circle'}"></i>
-                <span>${message}</span>
-            `;
-            
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: white;
-                color: #333;
-                padding: 15px 25px;
-                border-radius: 12px;
-                box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                z-index: 1000;
-                animation: slideIn 0.3s ease;
-                border-left: 4px solid ${type === 'success' ? '#4caf50' : 
-                                         type === 'warning' ? '#ff9800' : '#2196f3'};
-            `;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.animation = 'slideOut 0.3s ease';
-                setTimeout(() => notification.remove(), 300);
-            }, 5000);
+
+        function showToast(message, type) {
+            const icons = { success:'fa-circle-check', warning:'fa-triangle-exclamation', error:'fa-circle-xmark', info:'fa-circle-info' };
+            const colors = { success:'var(--emerald)', warning:'var(--amber)', error:'var(--rose)', info:'var(--cyan)' };
+            const t = document.createElement('div');
+            t.className = `toast toast-${type}`;
+            t.innerHTML = `<i class="fas ${icons[type]||icons.info}" style="color:${colors[type]||colors.info}"></i><span>${message}</span>`;
+            document.body.appendChild(t);
+            setTimeout(() => { t.style.animation='toastOut 0.35s forwards'; setTimeout(()=>t.remove(),350); }, 4500);
         }
-        
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideIn {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            @keyframes slideOut {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(100%); opacity: 0; }
-            }
-        `;
-        document.head.appendChild(style);
     </script>
 </body>
 </html>

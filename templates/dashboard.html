@@ -1,51 +1,87 @@
 {% extends "base.html" %}
 
 {% block content %}
+
+<!-- STAT CARDS -->
 <div class="grid-3">
     <div class="stat-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <span style="font-size:1.8em;">📁</span>
+            <span class="badge badge-info">Personnel</span>
+        </div>
         <div class="stat-number">{{ stats.total_files }}</div>
         <div class="stat-label">Mes fichiers</div>
     </div>
     <div class="stat-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <span style="font-size:1.8em;">⛓️</span>
+            <span class="badge badge-info">Global</span>
+        </div>
         <div class="stat-number">{{ stats.total_blocks }}</div>
-        <div class="stat-label">Total blocs</div>
+        <div class="stat-label">Blocs blockchain</div>
     </div>
     <div class="stat-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <span style="font-size:1.8em;">👥</span>
+            <span class="badge badge-success">En ligne</span>
+        </div>
         <div class="stat-number">{{ stats.active_users }}</div>
         <div class="stat-label">Utilisateurs actifs</div>
     </div>
 </div>
 
+<!-- RECENT ACTIVITY -->
 <div class="card">
     <div class="card-header">
-        <i class="fas fa-clock" style="color: var(--primary); margin-right: 10px;"></i>
-        <h2>Activité récente</h2>
+        <i class="fas fa-clock-rotate-left"></i>
+        <div>
+            <h2>Activité récente</h2>
+            <p>Vos dernières actions sur la plateforme</p>
+        </div>
     </div>
-    <p><strong>Dernier fichier :</strong> {{ stats.last_file }} ({{ stats.last_date }})</p>
+    <div style="display:flex; align-items:center; gap:12px; padding:16px 20px; background:var(--bg-subtle); border-radius:var(--r-md);">
+        <div style="width:36px; height:36px; border-radius:50%; background:rgba(56,189,248,0.1); display:flex; align-items:center; justify-content:center;">
+            <i class="fas fa-file-circle-check" style="color:var(--cyan); font-size:0.9em;"></i>
+        </div>
+        <div>
+            <p style="font-weight:600; color:var(--text-1);">{{ stats.last_file }}</p>
+            <p style="font-size:0.83em; color:var(--text-3); margin-top:2px;">{{ stats.last_date }}</p>
+        </div>
+    </div>
 </div>
 
-<!-- Graphique -->
+<!-- CHART -->
 <div class="card">
     <div class="card-header">
-        <i class="fas fa-chart-line" style="color: var(--primary); margin-right: 10px;"></i>
-        <h2>Activité des 7 derniers jours</h2>
+        <i class="fas fa-chart-line"></i>
+        <div>
+            <h2>Activité — 7 derniers jours</h2>
+            <p>Nombre d'uploads par jour</p>
+        </div>
     </div>
-    <canvas id="activityChart" style="max-height: 300px; width: 100%;"></canvas>
+    <div class="chart-wrap">
+        <canvas id="activityChart"></canvas>
+    </div>
 </div>
 
+<!-- QUICK ACTIONS -->
 <div class="card">
     <div class="card-header">
+        <i class="fas fa-bolt"></i>
         <h2>Actions rapides</h2>
     </div>
-    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-        <a href="/upload-page" class="btn btn-primary" style="width: auto; min-width: 150px;">
-            <i class="fas fa-upload"></i> Uploader
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        <a href="/upload-page" class="btn btn-primary">
+            <i class="fas fa-arrow-up-from-bracket"></i> Uploader un fichier
         </a>
-        <a href="/my-files" class="btn btn-secondary" style="width: auto; min-width: 150px;">
-            <i class="fas fa-folder"></i> Mes fichiers
+        <a href="/my-files" class="btn btn-secondary">
+            <i class="fas fa-folder-open"></i> Mes fichiers
         </a>
-        <a href="/profile" class="btn btn-secondary" style="width: auto; min-width: 150px;">
-            <i class="fas fa-user"></i> Profil
+        <a href="/profile" class="btn btn-secondary">
+            <i class="fas fa-circle-user"></i> Mon profil
+        </a>
+        <a href="/verify-page" class="btn btn-outline">
+            <i class="fas fa-shield-halved"></i> Vérifier un bloc
         </a>
     </div>
 </div>
@@ -53,9 +89,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 fetch('/api/upload-stats')
-    .then(res => res.json())
+    .then(r => r.json())
     .then(data => {
-        if (data.days.length === 0) return;
+        if (!data.days || !data.days.length) return;
         new Chart(document.getElementById('activityChart'), {
             type: 'line',
             data: {
@@ -63,12 +99,32 @@ fetch('/api/upload-stats')
                 datasets: [{
                     label: 'Uploads',
                     data: data.counts,
-                    borderColor: '#4361ee',
-                    backgroundColor: 'rgba(67, 97, 238, 0.1)',
-                    borderWidth: 3,
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56,189,248,0.07)',
+                    borderWidth: 2.5,
+                    pointBackgroundColor: '#38bdf8',
+                    pointBorderColor: '#060a12',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
                     tension: 0.4,
                     fill: true
                 }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(56,189,248,0.06)' },
+                        ticks: { color: '#4b6585', font: { family: "'DM Sans'" } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(56,189,248,0.06)' },
+                        ticks: { color: '#4b6585', font: { family: "'DM Sans'" }, stepSize: 1 },
+                        beginAtZero: true
+                    }
+                }
             }
         });
     });

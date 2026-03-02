@@ -1,38 +1,41 @@
 {% extends "base.html" %}
-
-{% block title %}Blockchain{% endblock %}
-
 {% block content %}
-<div class="main-card" style="max-width: 1000px;">
+<div class="card" style="max-width:1050px; margin:0 auto;">
     <div class="card-header">
-        <div class="icon">⛓️</div>
-        <h2>{{ 'Blockchain Publique' if session.lang == 'fr' else 'Public Blockchain' }}</h2>
-        <p>{{ 'Historique complet et vérifiable' if session.lang == 'fr' else 'Complete and verifiable history' }}</p>
+        <i class="fas fa-cubes"></i>
+        <div>
+            <h2>Blockchain publique</h2>
+            <p>Historique complet et vérifiable de tous les blocs</p>
+        </div>
     </div>
-    
-    <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse;">
+    <div style="overflow-x:auto;">
+        <table>
             <thead>
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <th style="padding: 15px; text-align: left;">ID</th>
-                    <th style="padding: 15px; text-align: left;">{{ 'Fichier' if session.lang == 'fr' else 'File' }}</th>
-                    <th style="padding: 15px; text-align: left;">Hash</th>
-                    <th style="padding: 15px; text-align: left;">{{ 'Propriétaire' if session.lang == 'fr' else 'Owner' }}</th>
-                    <th style="padding: 15px; text-align: left;">{{ 'Date' if session.lang == 'fr' else 'Date' }}</th>
-                    <th style="padding: 15px; text-align: left;">{{ 'Action' if session.lang == 'fr' else 'Action' }}</th>
+                <tr>
+                    <th>ID</th>
+                    <th>Fichier</th>
+                    <th>Hash</th>
+                    <th>Propriétaire</th>
+                    <th>Date</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for block in blocks %}
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <td style="padding: 15px;">#{{ block.id }}</td>
-                    <td style="padding: 15px;">{{ block.filename }}</td>
-                    <td style="padding: 15px;"><code style="color: var(--secondary);">{{ block.file_hash }}</code></td>
-                    <td style="padding: 15px;">{{ block.username }}</td>
-                    <td style="padding: 15px;">{{ block.timestamp }}</td>
-                    <td style="padding: 15px;">
-                        <a href="/verify/{{ block.id }}" class="feature-link" style="padding: 5px 10px;">
-                            <i class="fas fa-check-circle"></i>
+                <tr>
+                    <td><span style="font-family:'JetBrains Mono',monospace; color:var(--violet); font-weight:600;">#{{ block.id }}</span></td>
+                    <td style="color:var(--text-1); font-weight:500;">{{ block.filename }}</td>
+                    <td><code>{{ block.file_hash[:20] }}…</code></td>
+                    <td>
+                        <span style="display:inline-flex; align-items:center; gap:6px;">
+                            <span style="width:22px; height:22px; border-radius:50%; background:var(--grad); display:inline-flex; align-items:center; justify-content:center; font-size:0.7em; color:#fff; font-weight:700;">{{ block.username[0]|upper }}</span>
+                            {{ block.username }}
+                        </span>
+                    </td>
+                    <td style="color:var(--text-3); font-size:0.88em;">{{ block.timestamp }}</td>
+                    <td>
+                        <a href="/verify/{{ block.id }}" class="btn btn-outline" style="padding:7px 14px; font-size:0.83em;">
+                            <i class="fas fa-shield-halved"></i> Vérifier
                         </a>
                     </td>
                 </tr>
@@ -40,11 +43,9 @@
             </tbody>
         </table>
     </div>
-    
-    <div style="margin-top: 30px; text-align: center;">
-        <a href="/" class="btn btn-secondary" style="width: auto;">
-            <i class="fas fa-arrow-left"></i>
-            {{ 'Retour' if session.lang == 'fr' else 'Back' }}
+    <div style="text-align:center; margin-top:28px; padding-top:20px; border-top:1px solid var(--border);">
+        <a href="/" class="btn btn-secondary" style="width:auto;">
+            <i class="fas fa-arrow-left"></i> Retour à l'accueil
         </a>
     </div>
 </div>

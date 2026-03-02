@@ -1,105 +1,76 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div style="max-width: 500px; margin: 40px auto;">
-    <div class="profile-card">
-        <h2 style="text-align: center; margin-bottom: 30px;">📝 Inscription</h2>
-        
+<div class="auth-wrapper" style="max-width:500px;">
+    <div class="auth-card">
+
+        <div style="text-align:center; margin-bottom:28px;">
+            <div style="width:56px; height:56px; background:var(--grad); border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.5em; margin-bottom:18px; box-shadow:var(--shadow-btn);">
+                📝
+            </div>
+            <h2>Créer un compte</h2>
+            <p class="auth-sub">Rejoignez SecureChain en quelques secondes</p>
+        </div>
+
         <form method="POST">
             <div class="form-group">
-                <label>Nom d'utilisateur</label>
-                <input type="text" name="username" class="form-control" required>
+                <label><i class="fas fa-user" style="color:var(--text-3); margin-right:6px;"></i> Nom d'utilisateur</label>
+                <input type="text" name="username" class="form-control" placeholder="Choisissez un identifiant" required autofocus>
             </div>
-            
             <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" class="form-control" required>
+                <label><i class="fas fa-envelope" style="color:var(--text-3); margin-right:6px;"></i> Email</label>
+                <input type="email" name="email" class="form-control" placeholder="vous@exemple.com" required>
             </div>
-            
             <div class="form-group">
-                <label>Mot de passe</label>
-                <input type="password" name="password" id="password" class="form-control" required minlength="8">
-                <small style="color: var(--gray); display: block; margin-top: 5px;">
-                    Exemple: Secure123 (8 caractères min, 1 majuscule, 1 chiffre)
-                </small>
-            </div>
-            
-            <!-- Indicateur de force -->
-            <div style="margin: 20px 0;">
-                <div style="display: flex; gap: 5px; height: 5px;">
-                    <div id="strength1" style="flex: 1; background: #e0e0e0; border-radius: 5px;"></div>
-                    <div id="strength2" style="flex: 1; background: #e0e0e0; border-radius: 5px;"></div>
-                    <div id="strength3" style="flex: 1; background: #e0e0e0; border-radius: 5px;"></div>
+                <label><i class="fas fa-lock" style="color:var(--text-3); margin-right:6px;"></i> Mot de passe</label>
+                <input type="password" name="password" id="password" class="form-control" placeholder="••••••••" required minlength="8">
+                <!-- Strength bars -->
+                <div class="strength-bars" style="margin-top:10px;">
+                    <div class="strength-bar" id="strength1"></div>
+                    <div class="strength-bar" id="strength2"></div>
+                    <div class="strength-bar" id="strength3"></div>
                 </div>
-                <p id="strengthText" style="font-size: 0.9em; margin-top: 5px; color: var(--gray);"></p>
+                <p class="strength-text" id="strengthText"></p>
             </div>
-            
-            <!-- Exigences -->
-            <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 20px 0;">
-                <p style="font-weight: 600; margin-bottom: 10px;">Exigences :</p>
-                <ul style="list-style: none; padding: 0;">
-                    <li id="req-length" style="margin: 5px 0;">❌ Au moins 8 caractères</li>
-                    <li id="req-upper" style="margin: 5px 0;">❌ Au moins une majuscule</li>
-                    <li id="req-number" style="margin: 5px 0;">❌ Au moins un chiffre</li>
+
+            <!-- Requirements -->
+            <div class="req-list">
+                <p><i class="fas fa-shield-halved" style="color:var(--cyan); margin-right:6px;"></i> Exigences de sécurité</p>
+                <ul>
+                    <li id="req-length">❌ Au moins 8 caractères</li>
+                    <li id="req-upper">❌ Au moins une majuscule</li>
+                    <li id="req-number">❌ Au moins un chiffre</li>
                 </ul>
             </div>
-            
-            <button type="submit" class="btn btn-primary" style="width: 100%;">S'inscrire</button>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;">
+                <i class="fas fa-user-plus"></i> Créer mon compte
+            </button>
         </form>
-        
-        <p style="text-align: center; margin-top: 20px;">
-            Déjà un compte ? <a href="/login">Connectez-vous</a>
+
+        <p class="auth-link">
+            Déjà un compte ? <a href="/login">Se connecter</a>
         </p>
     </div>
 </div>
 
 <script>
-document.getElementById('password').addEventListener('input', function(e) {
-    const password = e.target.value;
-    
-    const hasLength = password.length >= 8;
-    const hasUpper = /[A-Z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    
-    document.getElementById('req-length').innerHTML = hasLength ? '✅ Au moins 8 caractères' : '❌ Au moins 8 caractères';
-    document.getElementById('req-upper').innerHTML = hasUpper ? '✅ Au moins une majuscule' : '❌ Au moins une majuscule';
-    document.getElementById('req-number').innerHTML = hasNumber ? '✅ Au moins un chiffre' : '❌ Au moins un chiffre';
-    
-    const strength1 = document.getElementById('strength1');
-    const strength2 = document.getElementById('strength2');
-    const strength3 = document.getElementById('strength3');
-    const strengthText = document.getElementById('strengthText');
-    
-    strength1.style.background = '#e0e0e0';
-    strength2.style.background = '#e0e0e0';
-    strength3.style.background = '#e0e0e0';
-    
-    if (password.length === 0) {
-        strengthText.textContent = '';
-        return;
-    }
-    
-    let score = 0;
-    if (hasLength) score++;
-    if (hasUpper) score++;
-    if (hasNumber) score++;
-    
-    if (score === 1) {
-        strength1.style.background = '#f44336';
-        strengthText.textContent = 'Faible';
-        strengthText.style.color = '#f44336';
-    } else if (score === 2) {
-        strength1.style.background = '#ff9800';
-        strength2.style.background = '#ff9800';
-        strengthText.textContent = 'Moyen';
-        strengthText.style.color = '#ff9800';
-    } else if (score === 3) {
-        strength1.style.background = '#4caf50';
-        strength2.style.background = '#4caf50';
-        strength3.style.background = '#4caf50';
-        strengthText.textContent = 'Fort';
-        strengthText.style.color = '#4caf50';
-    }
+document.getElementById('password').addEventListener('input', function() {
+    const v = this.value;
+    const hasLen = v.length >= 8, hasUp = /[A-Z]/.test(v), hasNum = /[0-9]/.test(v);
+    const mark = ok => ok ? '<span style="color:var(--emerald)">✅</span>' : '<span style="color:var(--rose)">❌</span>';
+    document.getElementById('req-length').innerHTML = mark(hasLen) + ' Au moins 8 caractères';
+    document.getElementById('req-upper').innerHTML  = mark(hasUp)  + ' Au moins une majuscule';
+    document.getElementById('req-number').innerHTML = mark(hasNum) + ' Au moins un chiffre';
+
+    const score = [hasLen, hasUp, hasNum].filter(Boolean).length;
+    const bars  = [1,2,3].map(i => document.getElementById('strength'+i));
+    const colors = { 0:'', 1:'var(--rose)', 2:'var(--amber)', 3:'var(--emerald)' };
+    const labels = { 0:'', 1:'Faible', 2:'Moyen', 3:'Fort' };
+    bars.forEach((b,i) => b.style.background = i < score ? colors[score] : 'var(--border)');
+    const t = document.getElementById('strengthText');
+    t.textContent = v.length ? labels[score] : '';
+    t.style.color = colors[score];
 });
 </script>
 {% endblock %}

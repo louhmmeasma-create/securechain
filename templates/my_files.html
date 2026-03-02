@@ -3,11 +3,18 @@
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h2><i class="fas fa-folder"></i> Mes fichiers</h2>
+        <i class="fas fa-folder-open"></i>
+        <div>
+            <h2>Mes fichiers</h2>
+            <p>Documents chiffrés et enregistrés sur la blockchain</p>
+        </div>
+        <a href="/upload-page" class="btn btn-primary" style="margin-left:auto; padding:9px 20px;">
+            <i class="fas fa-plus"></i> Nouveau
+        </a>
     </div>
-    
+
     {% if files %}
-    <div class="table-container">
+    <div class="table-container" style="margin-bottom:0; border-radius:var(--r-lg); border:1px solid var(--border);">
         <table>
             <thead>
                 <tr>
@@ -21,17 +28,24 @@
             <tbody>
                 {% for file in files %}
                 <tr>
-                    <td>#{{ file.id }}</td>
-                    <td>{{ file.filename }}</td>
-                    <td><code>{{ file.hash }}</code></td>
-                    <td>{{ file.date }}</td>
+                    <td><span style="font-family:'JetBrains Mono',monospace; color:var(--violet); font-weight:600;">#{{ file.id }}</span></td>
                     <td>
-                        <a href="/download/{{ file.id }}" class="btn btn-primary" style="padding: 5px 10px; width: auto;">
-                            <i class="fas fa-download"></i> Télécharger
-                        </a>
-                        <a href="/share/{{ file.id }}" class="btn btn-secondary" style="padding: 5px 10px; width: auto;">
-                            <i class="fas fa-share-alt"></i> Partager
-                        </a>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <i class="fas fa-file-shield" style="color:var(--cyan); font-size:0.95em;"></i>
+                            <span style="color:var(--text-1); font-weight:500;">{{ file.filename }}</span>
+                        </span>
+                    </td>
+                    <td><code>{{ file.hash[:20] }}…</code></td>
+                    <td style="color:var(--text-3); font-size:0.88em;">{{ file.date }}</td>
+                    <td>
+                        <div style="display:flex; gap:8px;">
+                            <a href="/download/{{ file.id }}" class="btn btn-primary" style="padding:7px 14px; font-size:0.85em;">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            <a href="/share/{{ file.id }}" class="btn btn-secondary" style="padding:7px 14px; font-size:0.85em;">
+                                <i class="fas fa-share-nodes"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -39,11 +53,12 @@
         </table>
     </div>
     {% else %}
-    <div style="text-align: center; padding: 60px;">
-        <i class="fas fa-folder-open" style="font-size: 4em; color: #64748b;"></i>
-        <p style="margin: 20px 0;">Aucun fichier pour le moment</p>
-        <a href="/upload-page" class="btn btn-primary" style="width: auto;">
-            <i class="fas fa-upload"></i> Uploader un fichier
+    <div class="empty-state">
+        <i class="fas fa-folder-open"></i>
+        <h3>Aucun fichier pour le moment</h3>
+        <p>Uploadez votre premier document pour le sécuriser sur la blockchain.</p>
+        <a href="/upload-page" class="btn btn-primary" style="width:auto;">
+            <i class="fas fa-arrow-up-from-bracket"></i> Uploader un fichier
         </a>
     </div>
     {% endif %}
