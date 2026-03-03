@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-crown" style="font-size: 3em; color: gold; margin-bottom: 20px;"></i>
+        <h2>Panneau d'administration</h2>
+        <p>Bienvenue dans l'espace administrateur</p>
+    </div>
+
+    <div class="grid-3" style="margin-bottom: 30px;">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_users }}</div>
+            <div class="stat-label">Utilisateurs</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ total_files }}</div>
+            <div class="stat-label">Fichiers</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ total_logs }}</div>
+            <div class="stat-label">Actions loggées</div>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 20px; margin-bottom: 30px; flex-wrap: wrap;">
+        <a href="/admin/users" class="btn btn-primary" style="width: auto;">
+            <i class="fas fa-users"></i> Gérer les utilisateurs
+        </a>
+        <a href="/admin/logs" class="btn btn-primary" style="width: auto;">
+            <i class="fas fa-history"></i> Voir les logs
+        </a>
+        <a href="/admin/stats" class="btn btn-primary" style="width: auto;">
+            <i class="fas fa-chart-bar"></i> Statistiques avancées
+        </a>
+    </div>
+
+    <div class="grid-2">
+        <!-- Derniers utilisateurs -->
+        <div class="card">
+            <h3>Derniers inscrits</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Utilisateur</th>
+                        <th>Email</th>
+                        <th>Date</th>
+                        <th>Rôle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in recent_users %}
+                    <tr>
+                        <td>{{ user[1] }}</td>
+                        <td>{{ user[2] }}</td>
+                        <!-- ✅ SQLite : date est un texte, on prend les 10 premiers caractères -->
+                        <td>{{ user[3][:10] if user[3] else 'N/A' }}</td>
+                        <td>
+                            {% if user[4] == 'admin' %}
+                                <span style="color: gold;">👑 Admin</span>
+                            {% else %}
+                                Utilisateur
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Derniers fichiers -->
+        <div class="card">
+            <h3>Derniers fichiers</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Fichier</th>
+                        <th>Utilisateur</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in recent_files %}
+                    <tr>
+                        <td>{{ file[1] }}</td>
+                        <td>{{ file[3] }}</td>
+                        <!-- ✅ SQLite : date est un texte -->
+                        <td>{{ file[2][:16] if file[2] else 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Activités suspectes -->
+    {% if suspicious_logs %}
+    <div class="card" style="margin-top: 30px;">
+        <h3 style="color: #f44336;">⚠️ Activités suspectes</h3>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Utilisateur ID</th>
+                    <th>Action</th>
+                    <th>IP</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in suspicious_logs %}
+                <tr>
+                    <td>{{ log[0] }}</td>
+                    <td>{{ log[1] }}</td>
+                    <td>{{ log[2] }}</td>
+                    <!-- ✅ SQLite : date est un texte -->
+                    <td>{{ log[3][:16] if log[3] else 'N/A' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

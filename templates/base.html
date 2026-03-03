@@ -39,6 +39,11 @@
                 <a href="/stats" class="nav-link {% if request.path == '/stats' %}active{% endif %}">
                     <i class="fas fa-chart-pie"></i> Stats
                 </a>
+                {% if is_admin %}
+                    <a href="/admin" class="nav-link {% if request.path.startswith('/admin') %}active{% endif %}">
+                        <i class="fas fa-crown" style="color: gold;"></i> Admin
+                    </a>
+                {% endif %}
             </nav>
 
             <div class="profile-menu">
@@ -52,6 +57,11 @@
                         <a href="/profile" class="dropdown-item">
                             <i class="fas fa-circle-user"></i> Mon profil
                         </a>
+                        {% if is_admin %}
+                        <a href="/admin" class="dropdown-item">
+                            <i class="fas fa-crown" style="color: gold;"></i> Administration
+                        </a>
+                        {% endif %}
                         <a href="/logout" class="dropdown-item" style="color:var(--rose);">
                             <i class="fas fa-arrow-right-from-bracket"></i> Déconnexion
                         </a>

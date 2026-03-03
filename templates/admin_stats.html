@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-chart-bar" style="font-size: 3em; color: gold; margin-bottom: 20px;"></i>
+        <h2>Statistiques avancées</h2>
+    </div>
+
+    <div class="grid-2">
+        <!-- Top uploaders -->
+        <div class="card">
+            <h3>Top 10 contributeurs</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Utilisateur</th>
+                        <th>Fichiers</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in top_users %}
+                    <tr>
+                        <td>{{ user[0] }}</td>
+                        <td>{{ user[1] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Statistiques journalières -->
+        <div class="card">
+            <h3>Activité par jour</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Uploads</th>
+                        <th>Utilisateurs actifs</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in daily_stats %}
+                    <tr>
+                        <td>{{ stat[0].strftime('%d/%m/%Y') }}</td>
+                        <td>{{ stat[1] }}</td>
+                        <td>{{ stat[2] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
