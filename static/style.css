@@ -23,6 +23,8 @@
     --emerald:       #34d399;
     --rose:          #fb7185;
     --amber:         #fbbf24;
+    --red:           #ef4444;
+    --orange:        #f97316;
 
     --text-1:        #eef4ff;
     --text-2:        #8ba8c8;
@@ -502,6 +504,57 @@ input[type="file"].form-control::-webkit-file-upload-button {
 .auth-link a { color: var(--cyan); text-decoration:none; font-weight:600; }
 .auth-link a:hover { text-decoration:underline; }
 
+/* ═══════════════════════ PAGE LIEN INVALIDE ════════════════════════ */
+.error-page {
+    max-width: 600px;
+    margin: 50px auto;
+    text-align: center;
+}
+
+.error-icon {
+    font-size: 4.5em;
+    margin-bottom: 25px;
+    display: inline-block;
+    filter: drop-shadow(0 0 25px currentColor);
+}
+
+.error-icon i.fa-hourglass-end { color: var(--amber); }
+.error-icon i.fa-file-exclamation { color: var(--red); }
+.error-icon i.fa-link-slash { color: var(--red); }
+
+.error-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.5em;
+    font-weight: 800;
+    margin-bottom: 20px;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.error-message {
+    color: var(--text-2);
+    font-size: 1.2em;
+    margin-bottom: 40px;
+    line-height: 1.6;
+    max-width: 450px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.error-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.error-actions .btn {
+    width: auto;
+    min-width: 160px;
+    padding: 14px 28px;
+}
+
 /* ═══════════════════════ BADGES ════════════════════════════ */
 .badge {
     display:inline-flex; align-items:center; gap:5px;
@@ -526,6 +579,7 @@ input[type="file"].form-control::-webkit-file-upload-button {
 .alert-success { background:rgba(52,211,153,0.10);  border:1px solid rgba(52,211,153,0.25); color:var(--emerald); }
 .alert-error   { background:rgba(251,113,133,0.10); border:1px solid rgba(251,113,133,0.25); color:var(--rose); }
 .alert-warning { background:rgba(251,191,36,0.10);  border:1px solid rgba(251,191,36,0.25);  color:var(--amber); }
+.alert-info    { background:rgba(56,189,248,0.10);  border:1px solid rgba(56,189,248,0.25);  color:var(--cyan); }
 .alert i { font-size:1.1em; flex-shrink:0; }
 
 /* ═══════════════════════ PROFILE PAGE ══════════════════════ */
@@ -657,6 +711,10 @@ input[type="file"].form-control::-webkit-file-upload-button {
     .hero h2 { font-size:1.9em; }
     .card,.main-card,.profile-card,.auth-card { padding:22px 18px; }
     .share-link-group { flex-direction:column; }
+    .error-title { font-size:2em; }
+    .error-message { font-size:1.1em; }
+    .error-actions { flex-direction:column; align-items:center; }
+    .error-actions .btn { width:100%; max-width:250px; }
 }
 @media (max-width: 480px) {
     .hero { padding:50px 16px 40px; }
