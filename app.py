@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, jsonify
-from config import get_connection
+from config import get_connection, query_db
 from crypto import generate_keys, hash_data, sign_data, encrypt_file, decrypt_file, verify_signature
 from blockchain import calculate_hash
 import os
@@ -35,6 +35,9 @@ bcrypt = Bcrypt(app)
 mail = Mail(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# Détection de l'environnement PythonAnywhere
+ON_PYTHONANYWHERE = os.path.exists('/home/asmalouhmme')
+
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs('keys', exist_ok=True)
 
@@ -49,11 +52,19 @@ def log_action(user_id, action):
         conn = get_connection()
         cursor = conn.cursor()
         ip = request.remote_addr
-        cursor.execute("INSERT INTO Logs (user_id, action, ip_address) VALUES (?, ?, ?)", (user_id, action, ip))
+        
+        # Adaptation pour MySQL
+        if ON_PYTHONANYWHERE:
+            cursor.execute("INSERT INTO Logs (user_id, action, ip_address) VALUES (%s, %s, %s)", 
+                          (user_id, action, ip))
+        else:
+            cursor.execute("INSERT INTO Logs (user_id, action, ip_address) VALUES (?, ?, ?)", 
+                          (user_id, action, ip))
+        
         conn.commit()
         conn.close()
-    except:
-        pass
+    except Exception as e:
+        print(f"Erreur log_action: {e}")
 
 def login_required(f):
     @wraps(f)
@@ -70,11 +81,18 @@ def admin_required(f):
         if 'user_id' not in session:
             flash('❌ Vous devez être connecté', 'error')
             return redirect(url_for('login'))
+        
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT role FROM Users WHERE id = ?", (session['user_id'],))
+        
+        if ON_PYTHONANYWHERE:
+            cursor.execute("SELECT role FROM Users WHERE id = %s", (session['user_id'],))
+        else:
+            cursor.execute("SELECT role FROM Users WHERE id = ?", (session['user_id'],))
+        
         result = cursor.fetchone()
         conn.close()
+        
         if not result or result[0] != 'admin':
             flash('❌ Accès réservé aux administrateurs', 'error')
             return redirect(url_for('index'))
@@ -100,7 +118,12 @@ def inject_admin():
         try:
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT role FROM Users WHERE id = ?", (session['user_id'],))
+            
+            if ON_PYTHONANYWHERE:
+                cursor.execute("SELECT role FROM Users WHERE id = %s", (session['user_id'],))
+            else:
+                cursor.execute("SELECT role FROM Users WHERE id = ?", (session['user_id'],))
+            
             result = cursor.fetchone()
             conn.close()
             is_admin = result and result[0] == 'admin'
@@ -179,13 +202,23 @@ def register():
         conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id FROM Users WHERE email = ?", (email,))
+        # Vérifier email existant
+        if ON_PYTHONANYWHERE:
+            cursor.execute("SELECT id FROM Users WHERE email = %s", (email,))
+        else:
+            cursor.execute("SELECT id FROM Users WHERE email = ?", (email,))
+        
         if cursor.fetchone():
             conn.close()
             flash('❌ Cet email est déjà utilisé', 'error')
             return redirect(url_for('register'))
 
-        cursor.execute("SELECT id FROM Users WHERE username = ?", (username,))
+        # Vérifier username existant
+        if ON_PYTHONANYWHERE:
+            cursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
+        else:
+            cursor.execute("SELECT id FROM Users WHERE username = ?", (username,))
+        
         if cursor.fetchone():
             conn.close()
             flash('❌ Ce nom d\'utilisateur est déjà pris', 'error')
@@ -197,10 +230,17 @@ def register():
         expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
 
         try:
-            cursor.execute("""
-                INSERT INTO Users (username, email, password, public_key, confirmation_token, token_expires, role)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (username, email, hashed_password, public_key.decode(), token, expires, 'user'))
+            if ON_PYTHONANYWHERE:
+                cursor.execute("""
+                    INSERT INTO Users (username, email, password, public_key, confirmation_token, token_expires, role)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (username, email, hashed_password, public_key.decode(), token, expires, 'user'))
+            else:
+                cursor.execute("""
+                    INSERT INTO Users (username, email, password, public_key, confirmation_token, token_expires, role)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (username, email, hashed_password, public_key.decode(), token, expires, 'user'))
+            
             conn.commit()
             user_id = cursor.lastrowid
             conn.close()
@@ -231,7 +271,12 @@ def register():
 def confirm_email(token):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, email, email_confirmed, token_expires FROM Users WHERE confirmation_token = ?", (token,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT id, email, email_confirmed, token_expires FROM Users WHERE confirmation_token = %s", (token,))
+    else:
+        cursor.execute("SELECT id, email, email_confirmed, token_expires FROM Users WHERE confirmation_token = ?", (token,))
+    
     user = cursor.fetchone()
 
     if not user:
@@ -246,13 +291,17 @@ def confirm_email(token):
         flash('✅ Email déjà confirmé.', 'success')
         return redirect(url_for('login'))
 
-    # SQLite : expires est un texte
-    if expires and datetime.strptime(expires, '%Y-%m-%d %H:%M:%S') < datetime.now():
+    # Vérifier expiration
+    if expires and datetime.strptime(str(expires), '%Y-%m-%d %H:%M:%S') < datetime.now():
         conn.close()
         flash('❌ Lien expiré.', 'error')
         return redirect(url_for('login'))
 
-    cursor.execute("UPDATE Users SET email_confirmed = 1, confirmation_token = NULL WHERE id = ?", (user_id,))
+    if ON_PYTHONANYWHERE:
+        cursor.execute("UPDATE Users SET email_confirmed = 1, confirmation_token = NULL WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("UPDATE Users SET email_confirmed = 1, confirmation_token = NULL WHERE id = ?", (user_id,))
+    
     conn.commit()
     conn.close()
 
@@ -269,7 +318,12 @@ def resend_confirmation():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT username, email, email_confirmed FROM Users WHERE id = ?", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT username, email, email_confirmed FROM Users WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("SELECT username, email, email_confirmed FROM Users WHERE id = ?", (user_id,))
+    
     user = cursor.fetchone()
 
     if not user:
@@ -286,7 +340,14 @@ def resend_confirmation():
 
     new_token = generate_confirmation_token()
     new_expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute("UPDATE Users SET confirmation_token = ?, token_expires = ? WHERE id = ?", (new_token, new_expires, user_id))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("UPDATE Users SET confirmation_token = %s, token_expires = %s WHERE id = %s", 
+                      (new_token, new_expires, user_id))
+    else:
+        cursor.execute("UPDATE Users SET confirmation_token = ?, token_expires = ? WHERE id = ?", 
+                      (new_token, new_expires, user_id))
+    
     conn.commit()
     conn.close()
 
@@ -316,10 +377,18 @@ def login():
 
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, username, email, password, twofa_secret, twofa_enabled, email_confirmed, role
-            FROM Users WHERE username = ?
-        """, (username,))
+        
+        if ON_PYTHONANYWHERE:
+            cursor.execute("""
+                SELECT id, username, email, password, twofa_secret, twofa_enabled, email_confirmed, role
+                FROM Users WHERE username = %s
+            """, (username,))
+        else:
+            cursor.execute("""
+                SELECT id, username, email, password, twofa_secret, twofa_enabled, email_confirmed, role
+                FROM Users WHERE username = ?
+            """, (username,))
+        
         user = cursor.fetchone()
 
         if not user:
@@ -370,7 +439,12 @@ def verify_2fa():
         user_id = session['2fa_user_id']
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+        
+        if ON_PYTHONANYWHERE:
+            cursor.execute("SELECT twofa_secret FROM Users WHERE id = %s", (user_id,))
+        else:
+            cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+        
         secret = cursor.fetchone()[0]
         conn.close()
         totp = pyotp.TOTP(secret)
@@ -407,12 +481,22 @@ def profile():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT u.username, u.email, u.public_key, u.twofa_enabled, u.email_confirmed, u.role,
-               COUNT(b.id) as file_count, MIN(b.timestamp) as first_upload, u.created_at
-        FROM Users u LEFT JOIN Blocks b ON b.user_id = u.id
-        WHERE u.id = ? GROUP BY u.id
-    """, (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT u.username, u.email, u.public_key, u.twofa_enabled, u.email_confirmed, u.role,
+                   COUNT(b.id) as file_count, MIN(b.timestamp) as first_upload, u.created_at
+            FROM Users u LEFT JOIN Blocks b ON b.user_id = u.id
+            WHERE u.id = %s GROUP BY u.id
+        """, (user_id,))
+    else:
+        cursor.execute("""
+            SELECT u.username, u.email, u.public_key, u.twofa_enabled, u.email_confirmed, u.role,
+                   COUNT(b.id) as file_count, MIN(b.timestamp) as first_upload, u.created_at
+            FROM Users u LEFT JOIN Blocks b ON b.user_id = u.id
+            WHERE u.id = ? GROUP BY u.id
+        """, (user_id,))
+    
     user_data = cursor.fetchone()
     conn.close()
 
@@ -420,9 +504,8 @@ def profile():
         'username': user_data[0], 'email': user_data[1],
         'public_key': user_data[2][:100] + '...' if user_data[2] else 'N/A',
         'full_public_key': user_data[2], 'file_count': user_data[6],
-        # SQLite : dates sont des textes
-        'first_upload': user_data[7][:10] if user_data[7] else 'Aucun fichier',
-        'member_since': user_data[8][:10] if user_data[8] else 'N/A',
+        'first_upload': str(user_data[7])[:10] if user_data[7] else 'Aucun fichier',
+        'member_since': str(user_data[8])[:10] if user_data[8] else 'N/A',
         'twofa_enabled': user_data[3], 'email_confirmed': user_data[4],
         'role': user_data[5]
     }
@@ -453,7 +536,12 @@ def change_password():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT password FROM Users WHERE id = ?", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT password FROM Users WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("SELECT password FROM Users WHERE id = ?", (user_id,))
+    
     stored_password = cursor.fetchone()[0]
 
     if not bcrypt.check_password_hash(stored_password, old_password):
@@ -462,7 +550,12 @@ def change_password():
         return redirect(url_for('profile'))
 
     new_hashed = bcrypt.generate_password_hash(new_password).decode('utf-8')
-    cursor.execute("UPDATE Users SET password = ? WHERE id = ?", (new_hashed, user_id))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("UPDATE Users SET password = %s WHERE id = %s", (new_hashed, user_id))
+    else:
+        cursor.execute("UPDATE Users SET password = ? WHERE id = ?", (new_hashed, user_id))
+    
     conn.commit()
     conn.close()
     log_action(user_id, 'Changement mot de passe')
@@ -479,13 +572,21 @@ def setup_2fa():
     username = session['username']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT twofa_secret FROM Users WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+    
     existing = cursor.fetchone()
     if existing and existing[0]:
         secret = existing[0]
     else:
         secret = pyotp.random_base32()
-        cursor.execute("UPDATE Users SET twofa_secret = ? WHERE id = ?", (secret, user_id))
+        if ON_PYTHONANYWHERE:
+            cursor.execute("UPDATE Users SET twofa_secret = %s WHERE id = %s", (secret, user_id))
+        else:
+            cursor.execute("UPDATE Users SET twofa_secret = ? WHERE id = ?", (secret, user_id))
         conn.commit()
     conn.close()
     uri = pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name="SecureChain")
@@ -502,11 +603,19 @@ def verify_2fa_setup():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT twofa_secret FROM Users WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("SELECT twofa_secret FROM Users WHERE id = ?", (user_id,))
+    
     secret = cursor.fetchone()[0]
     totp = pyotp.TOTP(secret)
     if totp.verify(code):
-        cursor.execute("UPDATE Users SET twofa_enabled = 1 WHERE id = ?", (user_id,))
+        if ON_PYTHONANYWHERE:
+            cursor.execute("UPDATE Users SET twofa_enabled = 1 WHERE id = %s", (user_id,))
+        else:
+            cursor.execute("UPDATE Users SET twofa_enabled = 1 WHERE id = ?", (user_id,))
         conn.commit()
         conn.close()
         log_action(user_id, '2FA activée')
@@ -522,7 +631,12 @@ def disable_2fa():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE Users SET twofa_enabled = 0, twofa_secret = NULL WHERE id = ?", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("UPDATE Users SET twofa_enabled = 0, twofa_secret = NULL WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("UPDATE Users SET twofa_enabled = 0, twofa_secret = NULL WHERE id = ?", (user_id,))
+    
     conn.commit()
     conn.close()
     log_action(user_id, '2FA désactivée')
@@ -538,7 +652,12 @@ def share_file(block_id):
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT filename, user_id FROM Blocks WHERE id = ?", (block_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT filename, user_id FROM Blocks WHERE id = %s", (block_id,))
+    else:
+        cursor.execute("SELECT filename, user_id FROM Blocks WHERE id = ?", (block_id,))
+    
     block = cursor.fetchone()
     if not block or block[1] != user_id:
         conn.close()
@@ -547,7 +666,14 @@ def share_file(block_id):
     filename = block[0]
     token = secrets.token_urlsafe(32)
     expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute("INSERT INTO Shares (block_id, token, expires_at, created_by) VALUES (?, ?, ?, ?)", (block_id, token, expires, user_id))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("INSERT INTO Shares (block_id, token, expires_at, created_by) VALUES (%s, %s, %s, %s)", 
+                      (block_id, token, expires, user_id))
+    else:
+        cursor.execute("INSERT INTO Shares (block_id, token, expires_at, created_by) VALUES (?, ?, ?, ?)", 
+                      (block_id, token, expires, user_id))
+    
     conn.commit()
     conn.close()
     share_link = url_for('access_shared', token=token, _external=True)
@@ -557,12 +683,20 @@ def share_file(block_id):
 def access_shared(token):
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : comparaison de dates en texte
-    cursor.execute("""
-        SELECT s.block_id, b.filename, b.file_hash, s.expires_at
-        FROM Shares s JOIN Blocks b ON s.block_id = b.id
-        WHERE s.token = ?
-    """, (token,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT s.block_id, b.filename, b.file_hash, s.expires_at
+            FROM Shares s JOIN Blocks b ON s.block_id = b.id
+            WHERE s.token = %s
+        """, (token,))
+    else:
+        cursor.execute("""
+            SELECT s.block_id, b.filename, b.file_hash, s.expires_at
+            FROM Shares s JOIN Blocks b ON s.block_id = b.id
+            WHERE s.token = ?
+        """, (token,))
+    
     share = cursor.fetchone()
 
     if not share:
@@ -573,8 +707,8 @@ def access_shared(token):
     block_id, filename, file_hash, expires = share
     conn.close()
 
-    # Vérifier expiration manuellement
-    if datetime.strptime(expires, '%Y-%m-%d %H:%M:%S') < datetime.now():
+    # Vérifier expiration
+    if datetime.strptime(str(expires), '%Y-%m-%d %H:%M:%S') < datetime.now():
         flash('❌ Lien expiré', 'error')
         return redirect(url_for('index'))
 
@@ -602,20 +736,37 @@ def dashboard():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM Blocks WHERE user_id = ?", (user_id,))
-    total_files = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM Blocks")
-    total_blocks = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(DISTINCT user_id) FROM Blocks")
-    active_users = cursor.fetchone()[0]
-    cursor.execute("SELECT filename, timestamp FROM Blocks WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT COUNT(*) FROM Blocks WHERE user_id = %s", (user_id,))
+        total_files = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM Blocks")
+        total_blocks = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(DISTINCT user_id) FROM Blocks")
+        active_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT filename, timestamp FROM Blocks WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1", (user_id,))
+    else:
+        cursor.execute("SELECT COUNT(*) FROM Blocks WHERE user_id = ?", (user_id,))
+        total_files = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM Blocks")
+        total_blocks = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(DISTINCT user_id) FROM Blocks")
+        active_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT filename, timestamp FROM Blocks WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1", (user_id,))
+    
     recent = cursor.fetchone()
     conn.close()
+    
     stats = {
         'total_files': total_files, 'total_blocks': total_blocks, 'active_users': active_users,
         'last_file': recent[0] if recent else 'Aucun',
-        # SQLite : date est un texte
-        'last_date': recent[1][:10] if recent and recent[1] else 'N/A'
+        'last_date': str(recent[1])[:10] if recent and recent[1] else 'N/A'
     }
     return render_template('dashboard.html', stats=stats)
 
@@ -623,36 +774,66 @@ def dashboard():
 def upload_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : DATE() au lieu de CAST AS DATE, DATEADD → DATE('now', '-7 days')
-    cursor.execute("""
-        SELECT DATE(timestamp) as date, COUNT(*) as count
-        FROM Blocks
-        WHERE timestamp >= DATE('now', '-7 days')
-        GROUP BY DATE(timestamp)
-        ORDER BY date
-    """)
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT DATE(timestamp) as date, COUNT(*) as count
+            FROM Blocks
+            WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            GROUP BY DATE(timestamp)
+            ORDER BY date
+        """)
+    else:
+        cursor.execute("""
+            SELECT DATE(timestamp) as date, COUNT(*) as count
+            FROM Blocks
+            WHERE timestamp >= DATE('now', '-7 days')
+            GROUP BY DATE(timestamp)
+            ORDER BY date
+        """)
+    
     data = cursor.fetchall()
     conn.close()
-    return jsonify({'days': [row[0] for row in data], 'counts': [row[1] for row in data]})
+    return jsonify({'days': [str(row[0]) for row in data], 'counts': [row[1] for row in data]})
 
 @app.route('/api/user-stats')
 def user_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : LIMIT au lieu de TOP
-    cursor.execute("""
-        SELECT u.username, COUNT(b.id) as file_count
-        FROM Users u LEFT JOIN Blocks b ON u.id = b.user_id
-        GROUP BY u.username ORDER BY file_count DESC LIMIT 5
-    """)
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT u.username, COUNT(b.id) as file_count
+            FROM Users u LEFT JOIN Blocks b ON u.id = b.user_id
+            GROUP BY u.username ORDER BY file_count DESC LIMIT 5
+        """)
+    else:
+        cursor.execute("""
+            SELECT u.username, COUNT(b.id) as file_count
+            FROM Users u LEFT JOIN Blocks b ON u.id = b.user_id
+            GROUP BY u.username ORDER BY file_count DESC LIMIT 5
+        """)
+    
     rows = cursor.fetchall()
-    cursor.execute("SELECT COUNT(*) FROM Users")
-    total_users = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM Blocks")
-    total_blocks = cursor.fetchone()[0]
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT COUNT(*) FROM Users")
+        total_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Blocks")
+        total_blocks = cursor.fetchone()[0]
+    else:
+        cursor.execute("SELECT COUNT(*) FROM Users")
+        total_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Blocks")
+        total_blocks = cursor.fetchone()[0]
+    
     conn.close()
-    return jsonify({'users': [r[0] for r in rows], 'counts': [r[1] for r in rows],
-        'total_users': total_users, 'total_blocks': total_blocks})
+    return jsonify({
+        'users': [r[0] for r in rows], 
+        'counts': [r[1] for r in rows],
+        'total_users': total_users, 
+        'total_blocks': total_blocks
+    })
 
 # ============================================
 # STATISTIQUES
@@ -662,9 +843,15 @@ def user_stats():
 def stats():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT filename FROM Blocks")
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT filename FROM Blocks")
+    else:
+        cursor.execute("SELECT filename FROM Blocks")
+    
     files = cursor.fetchall()
     conn.close()
+    
     categories = {}
     for file in files:
         cat = classify_file(file[0])
@@ -680,14 +867,18 @@ def my_files():
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, filename, file_hash, timestamp FROM Blocks WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT id, filename, file_hash, timestamp FROM Blocks WHERE user_id = %s ORDER BY timestamp DESC", (user_id,))
+    else:
+        cursor.execute("SELECT id, filename, file_hash, timestamp FROM Blocks WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
+    
     files = []
     for row in cursor.fetchall():
         files.append({
             'id': row[0], 'filename': row[1],
             'hash': row[2][:20] + '...', 'full_hash': row[2],
-            # SQLite : date est un texte
-            'date': row[3][:16] if row[3] else 'N/A'
+            'date': str(row[3])[:16] if row[3] else 'N/A'
         })
     conn.close()
     return render_template('my_files.html', files=files)
@@ -715,7 +906,12 @@ def upload():
     file_hash = hash_data(data)
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM Blocks WHERE file_hash = ?", (file_hash,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT id FROM Blocks WHERE file_hash = %s", (file_hash,))
+    else:
+        cursor.execute("SELECT id FROM Blocks WHERE file_hash = ?", (file_hash,))
+    
     existing = cursor.fetchone()
     conn.close()
     if existing:
@@ -748,14 +944,23 @@ def process_upload(data, filename, file_hash):
     signature = sign_data(file_hash.encode(), private_key)
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : LIMIT au lieu de TOP
-    cursor.execute("SELECT file_hash FROM Blocks ORDER BY id DESC LIMIT 1")
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT file_hash FROM Blocks ORDER BY id DESC LIMIT 1")
+    else:
+        cursor.execute("SELECT file_hash FROM Blocks ORDER BY id DESC LIMIT 1")
+    
     last = cursor.fetchone()
     previous_hash = last[0] if last else "0"
-    cursor.execute("INSERT INTO Blocks (filename, file_hash, previous_hash, signature, user_id) VALUES (?, ?, ?, ?, ?)",
-        (filename, file_hash, previous_hash, signature, user_id))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("INSERT INTO Blocks (filename, file_hash, previous_hash, signature, user_id) VALUES (%s, %s, %s, %s, %s)",
+            (filename, file_hash, previous_hash, signature, user_id))
+    else:
+        cursor.execute("INSERT INTO Blocks (filename, file_hash, previous_hash, signature, user_id) VALUES (?, ?, ?, ?, ?)",
+            (filename, file_hash, previous_hash, signature, user_id))
+    
     conn.commit()
-    # SQLite : lastrowid au lieu de @@IDENTITY
     block_id = cursor.lastrowid
     conn.close()
     log_action(user_id, f'Upload fichier #{block_id}')
@@ -771,7 +976,12 @@ def process_upload(data, filename, file_hash):
 def download(block_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT filename, file_hash, user_id FROM Blocks WHERE id = ?", (block_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT filename, file_hash, user_id FROM Blocks WHERE id = %s", (block_id,))
+    else:
+        cursor.execute("SELECT filename, file_hash, user_id FROM Blocks WHERE id = ?", (block_id,))
+    
     block = cursor.fetchone()
     conn.close()
     if not block:
@@ -801,17 +1011,30 @@ def verify_page():
 def verify(block_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT b.filename, b.file_hash, b.user_id, b.signature, b.timestamp, u.username
-        FROM Blocks b JOIN Users u ON b.user_id = u.id WHERE b.id = ?
-    """, (block_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT b.filename, b.file_hash, b.user_id, b.signature, b.timestamp, u.username
+            FROM Blocks b JOIN Users u ON b.user_id = u.id WHERE b.id = %s
+        """, (block_id,))
+    else:
+        cursor.execute("""
+            SELECT b.filename, b.file_hash, b.user_id, b.signature, b.timestamp, u.username
+            FROM Blocks b JOIN Users u ON b.user_id = u.id WHERE b.id = ?
+        """, (block_id,))
+    
     block = cursor.fetchone()
     if not block:
         conn.close()
         flash('❌ Bloc introuvable', 'error')
         return redirect(url_for('verify_page'))
     filename, stored_hash, user_id, signature, timestamp, owner = block
-    cursor.execute("SELECT public_key FROM Users WHERE id = ?", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT public_key FROM Users WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("SELECT public_key FROM Users WHERE id = ?", (user_id,))
+    
     user = cursor.fetchone()
     conn.close()
     if not user:
@@ -859,28 +1082,52 @@ def verify_block():
 def admin_panel():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM Users")
-    total_users = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM Blocks")
-    total_files = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM Logs")
-    total_logs = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM Users WHERE email_confirmed = 0")
-    unconfirmed_users = cursor.fetchone()[0]
-    # SQLite : LIMIT au lieu de TOP
-    cursor.execute("SELECT id, username, email, created_at, role, email_confirmed FROM Users ORDER BY created_at DESC LIMIT 10")
-    recent_users = cursor.fetchall()
-    cursor.execute("""
-        SELECT b.id, b.filename, b.timestamp, u.username
-        FROM Blocks b JOIN Users u ON b.user_id = u.id
-        ORDER BY b.timestamp DESC LIMIT 10
-    """)
-    recent_files = cursor.fetchall()
-    cursor.execute("""
-        SELECT user_id, action, ip_address, created_at FROM Logs
-        WHERE action LIKE '%échec%' OR action LIKE '%invalide%'
-        ORDER BY created_at DESC LIMIT 10
-    """)
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT COUNT(*) FROM Users")
+        total_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Blocks")
+        total_files = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Logs")
+        total_logs = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Users WHERE email_confirmed = 0")
+        unconfirmed_users = cursor.fetchone()[0]
+        cursor.execute("SELECT id, username, email, created_at, role, email_confirmed FROM Users ORDER BY created_at DESC LIMIT 10")
+        recent_users = cursor.fetchall()
+        cursor.execute("""
+            SELECT b.id, b.filename, b.timestamp, u.username
+            FROM Blocks b JOIN Users u ON b.user_id = u.id
+            ORDER BY b.timestamp DESC LIMIT 10
+        """)
+        recent_files = cursor.fetchall()
+        cursor.execute("""
+            SELECT user_id, action, ip_address, created_at FROM Logs
+            WHERE action LIKE '%%échec%%' OR action LIKE '%%invalide%%'
+            ORDER BY created_at DESC LIMIT 10
+        """)
+    else:
+        cursor.execute("SELECT COUNT(*) FROM Users")
+        total_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Blocks")
+        total_files = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Logs")
+        total_logs = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM Users WHERE email_confirmed = 0")
+        unconfirmed_users = cursor.fetchone()[0]
+        cursor.execute("SELECT id, username, email, created_at, role, email_confirmed FROM Users ORDER BY created_at DESC LIMIT 10")
+        recent_users = cursor.fetchall()
+        cursor.execute("""
+            SELECT b.id, b.filename, b.timestamp, u.username
+            FROM Blocks b JOIN Users u ON b.user_id = u.id
+            ORDER BY b.timestamp DESC LIMIT 10
+        """)
+        recent_files = cursor.fetchall()
+        cursor.execute("""
+            SELECT user_id, action, ip_address, created_at FROM Logs
+            WHERE action LIKE '%échec%' OR action LIKE '%invalide%'
+            ORDER BY created_at DESC LIMIT 10
+        """)
+    
     suspicious_logs = cursor.fetchall()
     conn.close()
     return render_template('admin.html',
@@ -894,7 +1141,12 @@ def admin_panel():
 def admin_users():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, email, role, email_confirmed, twofa_enabled, created_at FROM Users ORDER BY created_at DESC")
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT id, username, email, role, email_confirmed, twofa_enabled, created_at FROM Users ORDER BY created_at DESC")
+    else:
+        cursor.execute("SELECT id, username, email, role, email_confirmed, twofa_enabled, created_at FROM Users ORDER BY created_at DESC")
+    
     users = cursor.fetchall()
     conn.close()
     return render_template('admin_users.html', users=users)
@@ -907,10 +1159,20 @@ def toggle_role(user_id):
         return redirect(url_for('admin_users'))
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT role FROM Users WHERE id = ?", (user_id,))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("SELECT role FROM Users WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("SELECT role FROM Users WHERE id = ?", (user_id,))
+    
     current_role = cursor.fetchone()[0]
     new_role = 'admin' if current_role == 'user' else 'user'
-    cursor.execute("UPDATE Users SET role = ? WHERE id = ?", (new_role, user_id))
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("UPDATE Users SET role = %s WHERE id = %s", (new_role, user_id))
+    else:
+        cursor.execute("UPDATE Users SET role = ? WHERE id = ?", (new_role, user_id))
+    
     conn.commit()
     conn.close()
     flash('✅ Rôle modifié avec succès', 'success')
@@ -925,10 +1187,17 @@ def admin_delete_user(user_id):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM Shares WHERE created_by = ?", (user_id,))
-        cursor.execute("DELETE FROM Logs WHERE user_id = ?", (user_id,))
-        cursor.execute("DELETE FROM Blocks WHERE user_id = ?", (user_id,))
-        cursor.execute("DELETE FROM Users WHERE id = ?", (user_id,))
+        if ON_PYTHONANYWHERE:
+            cursor.execute("DELETE FROM Shares WHERE created_by = %s", (user_id,))
+            cursor.execute("DELETE FROM Logs WHERE user_id = %s", (user_id,))
+            cursor.execute("DELETE FROM Blocks WHERE user_id = %s", (user_id,))
+            cursor.execute("DELETE FROM Users WHERE id = %s", (user_id,))
+        else:
+            cursor.execute("DELETE FROM Shares WHERE created_by = ?", (user_id,))
+            cursor.execute("DELETE FROM Logs WHERE user_id = ?", (user_id,))
+            cursor.execute("DELETE FROM Blocks WHERE user_id = ?", (user_id,))
+            cursor.execute("DELETE FROM Users WHERE id = ?", (user_id,))
+        
         conn.commit()
         flash('✅ Utilisateur supprimé avec succès', 'success')
     except Exception as e:
@@ -942,11 +1211,20 @@ def admin_delete_user(user_id):
 def admin_logs():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT l.id, l.user_id, u.username, l.action, l.ip_address, l.created_at
-        FROM Logs l LEFT JOIN Users u ON l.user_id = u.id
-        ORDER BY l.created_at DESC
-    """)
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT l.id, l.user_id, u.username, l.action, l.ip_address, l.created_at
+            FROM Logs l LEFT JOIN Users u ON l.user_id = u.id
+            ORDER BY l.created_at DESC
+        """)
+    else:
+        cursor.execute("""
+            SELECT l.id, l.user_id, u.username, l.action, l.ip_address, l.created_at
+            FROM Logs l LEFT JOIN Users u ON l.user_id = u.id
+            ORDER BY l.created_at DESC
+        """)
+    
     logs = cursor.fetchall()
     conn.close()
     return render_template('admin_logs.html', logs=logs)
@@ -956,17 +1234,30 @@ def admin_logs():
 def admin_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : DATE() au lieu de CAST AS DATE
-    cursor.execute("""
-        SELECT DATE(timestamp) as date, COUNT(*) as uploads, COUNT(DISTINCT user_id) as active_users
-        FROM Blocks GROUP BY DATE(timestamp) ORDER BY date DESC
-    """)
-    daily_stats = cursor.fetchall()
-    cursor.execute("""
-        SELECT u.username, COUNT(b.id) as upload_count
-        FROM Users u LEFT JOIN Blocks b ON u.id = b.user_id
-        GROUP BY u.username ORDER BY upload_count DESC LIMIT 10
-    """)
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT DATE(timestamp) as date, COUNT(*) as uploads, COUNT(DISTINCT user_id) as active_users
+            FROM Blocks GROUP BY DATE(timestamp) ORDER BY date DESC
+        """)
+        daily_stats = cursor.fetchall()
+        cursor.execute("""
+            SELECT u.username, COUNT(b.id) as upload_count
+            FROM Users u LEFT JOIN Blocks b ON u.id = b.user_id
+            GROUP BY u.username ORDER BY upload_count DESC LIMIT 10
+        """)
+    else:
+        cursor.execute("""
+            SELECT DATE(timestamp) as date, COUNT(*) as uploads, COUNT(DISTINCT user_id) as active_users
+            FROM Blocks GROUP BY DATE(timestamp) ORDER BY date DESC
+        """)
+        daily_stats = cursor.fetchall()
+        cursor.execute("""
+            SELECT u.username, COUNT(b.id) as upload_count
+            FROM Users u LEFT JOIN Blocks b ON u.id = b.user_id
+            GROUP BY u.username ORDER BY upload_count DESC LIMIT 10
+        """)
+    
     top_users = cursor.fetchall()
     conn.close()
     return render_template('admin_stats.html', daily_stats=daily_stats, top_users=top_users)
@@ -980,16 +1271,23 @@ def index():
         session['lang'] = 'fr'
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT b.id, b.filename, b.file_hash, b.timestamp, u.username
-        FROM Blocks b JOIN Users u ON b.user_id = u.id ORDER BY b.id DESC
-    """)
+    
+    if ON_PYTHONANYWHERE:
+        cursor.execute("""
+            SELECT b.id, b.filename, b.file_hash, b.timestamp, u.username
+            FROM Blocks b JOIN Users u ON b.user_id = u.id ORDER BY b.id DESC
+        """)
+    else:
+        cursor.execute("""
+            SELECT b.id, b.filename, b.file_hash, b.timestamp, u.username
+            FROM Blocks b JOIN Users u ON b.user_id = u.id ORDER BY b.id DESC
+        """)
+    
     blocks = []
     for row in cursor.fetchall():
         blocks.append({
             'id': row[0], 'filename': row[1], 'hash': row[2][:20] + '...',
-            # SQLite : date est un texte
-            'date': row[3][:16] if row[3] else 'N/A',
+            'date': str(row[3])[:16] if row[3] else 'N/A',
             'owner': row[4]
         })
     conn.close()
