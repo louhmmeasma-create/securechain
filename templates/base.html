@@ -39,7 +39,7 @@
                 <a href="/stats" class="nav-link {% if request.path == '/stats' %}active{% endif %}">
                     <i class="fas fa-chart-pie"></i> Stats
                 </a>
-                {% if is_admin %}
+                {% if session.user_id and check_admin(session.user_id) %}
                     <a href="/admin" class="nav-link {% if request.path.startswith('/admin') %}active{% endif %}">
                         <i class="fas fa-crown" style="color: gold;"></i> Admin
                     </a>
@@ -57,7 +57,7 @@
                         <a href="/profile" class="dropdown-item">
                             <i class="fas fa-circle-user"></i> Mon profil
                         </a>
-                        {% if is_admin %}
+                        {% if session.user_id and check_admin(session.user_id) %}
                         <a href="/admin" class="dropdown-item">
                             <i class="fas fa-crown" style="color: gold;"></i> Administration
                         </a>

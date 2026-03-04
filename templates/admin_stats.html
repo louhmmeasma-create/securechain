@@ -43,7 +43,8 @@
                 <tbody>
                     {% for stat in daily_stats %}
                     <tr>
-                        <td>{{ stat[0].strftime('%d/%m/%Y') }}</td>
+                        <!-- ✅ SQLite : date est un texte -->
+                        <td>{{ stat[0][:10] if stat[0] else 'N/A' }}</td>
                         <td>{{ stat[1] }}</td>
                         <td>{{ stat[2] }}</td>
                     </tr>

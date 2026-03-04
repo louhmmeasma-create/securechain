@@ -22,7 +22,8 @@
             </div>
             <p style="font-size:0.83em; color:var(--text-3); margin-top:10px;">
                 <i class="fas fa-clock" style="color:var(--amber);"></i>
-                Expire le {{ expires.strftime('%d/%m/%Y à %H:%M') }}
+                <!-- ✅ SQLite : expires est un texte -->
+                Expire le {{ expires[:16] if expires else 'N/A' }}
             </p>
         </div>
 
