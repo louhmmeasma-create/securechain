@@ -13,6 +13,28 @@
         </a>
     </div>
 
+    <!-- BARRE DE RECHERCHE -->
+    <form method="GET" action="/my-files" style="margin-bottom:20px;">
+        <div style="display:flex; gap:10px;">
+            <input type="text" name="search" value="{{ search }}" class="form-control"
+                   placeholder="🔍 Rechercher un fichier..." style="flex:1;">
+            <button type="submit" class="btn btn-primary" style="width:auto; padding:10px 20px;">
+                <i class="fas fa-search"></i> Rechercher
+            </button>
+            {% if search %}
+            <a href="/my-files" class="btn btn-secondary" style="width:auto; padding:10px 20px;">
+                <i class="fas fa-xmark"></i> Effacer
+            </a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if search %}
+    <p style="color:var(--text-3); margin-bottom:15px; font-size:0.9em;">
+        Résultats pour <strong style="color:var(--cyan);">"{{ search }}"</strong> — {{ files|length }} fichier(s) trouvé(s)
+    </p>
+    {% endif %}
+
     {% if files %}
     <div class="table-container" style="margin-bottom:0; border-radius:var(--r-lg); border:1px solid var(--border);">
         <table>
@@ -35,15 +57,19 @@
                             <span style="color:var(--text-1); font-weight:500;">{{ file.filename }}</span>
                         </span>
                     </td>
-                    <td><code>{{ file.hash[:20] }}…</code></td>
+                    <td><code>{{ file.hash }}</code></td>
                     <td style="color:var(--text-3); font-size:0.88em;">{{ file.date }}</td>
                     <td>
                         <div style="display:flex; gap:8px;">
-                            <a href="/download/{{ file.id }}" class="btn btn-primary" style="padding:7px 14px; font-size:0.85em;">
+                            <a href="/download/{{ file.id }}" class="btn btn-primary" style="padding:7px 14px; font-size:0.85em;" title="Télécharger">
                                 <i class="fas fa-download"></i>
                             </a>
-                            <a href="/share/{{ file.id }}" class="btn btn-secondary" style="padding:7px 14px; font-size:0.85em;">
+                            <a href="/share/{{ file.id }}" class="btn btn-secondary" style="padding:7px 14px; font-size:0.85em;" title="Partager">
                                 <i class="fas fa-share-nodes"></i>
+                            </a>
+                            <a href="/delete/{{ file.id }}" class="btn btn-danger" style="padding:7px 14px; font-size:0.85em;" title="Supprimer"
+                               onclick="return confirm('Supprimer ce fichier définitivement ?')">
+                                <i class="fas fa-trash"></i>
                             </a>
                         </div>
                     </td>
@@ -55,11 +81,16 @@
     {% else %}
     <div class="empty-state">
         <i class="fas fa-folder-open"></i>
-        <h3>Aucun fichier pour le moment</h3>
-        <p>Uploadez votre premier document pour le sécuriser sur la blockchain.</p>
-        <a href="/upload-page" class="btn btn-primary" style="width:auto;">
-            <i class="fas fa-arrow-up-from-bracket"></i> Uploader un fichier
-        </a>
+        {% if search %}
+            <h3>Aucun fichier trouvé pour "{{ search }}"</h3>
+            <p>Essayez un autre terme de recherche.</p>
+        {% else %}
+            <h3>Aucun fichier pour le moment</h3>
+            <p>Uploadez votre premier document pour le sécuriser sur la blockchain.</p>
+            <a href="/upload-page" class="btn btn-primary" style="width:auto;">
+                <i class="fas fa-arrow-up-from-bracket"></i> Uploader un fichier
+            </a>
+        {% endif %}
     </div>
     {% endif %}
 </div>

@@ -38,6 +38,11 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs('keys', exist_ok=True)
 
+# Limite tentatives connexion
+login_attempts = {}
+MAX_ATTEMPTS = 5
+BLOCK_MINUTES = 15
+
 # ============================================
 # FONCTIONS UTILES
 # ============================================
@@ -80,6 +85,29 @@ def admin_required(f):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated
+
+def check_login_attempts(ip):
+    now = datetime.now()
+    if ip in login_attempts:
+        data = login_attempts[ip]
+        if data['blocked_until'] and now < data['blocked_until']:
+            remaining = int((data['blocked_until'] - now).total_seconds() / 60) + 1
+            return True, remaining, data['count']
+        elif data['blocked_until'] and now >= data['blocked_until']:
+            login_attempts[ip] = {'count': 0, 'blocked_until': None}
+    return False, 0, login_attempts.get(ip, {}).get('count', 0)
+
+def record_failed_attempt(ip):
+    if ip not in login_attempts:
+        login_attempts[ip] = {'count': 0, 'blocked_until': None}
+    login_attempts[ip]['count'] += 1
+    if login_attempts[ip]['count'] >= MAX_ATTEMPTS:
+        login_attempts[ip]['blocked_until'] = datetime.now() + timedelta(minutes=BLOCK_MINUTES)
+    return login_attempts[ip]['count']
+
+def reset_attempts(ip):
+    if ip in login_attempts:
+        del login_attempts[ip]
 
 def _(key):
     translations = {
@@ -142,22 +170,6 @@ def notify_user(user_id, message, type='info'):
         'timestamp': datetime.now().strftime('%H:%M:%S')
     })
 
-@app.route('/test-notification')
-def test_notification():
-    if 'user_id' in session:
-        notify_user(session['user_id'], 'Ceci est un test de notification!', 'success')
-        return "Notification envoyée!"
-    return "Non connecté"
-
-@app.route('/test-email')
-def test_email():
-    try:
-        msg = Message(subject="Test SecureChain", recipients=['louhemmeasma@gmail.com'], body="Test d'envoi d'email.")
-        mail.send(msg)
-        return "✅ Email envoyé avec succès !"
-    except Exception as e:
-        return f"❌ Erreur: {str(e)}"
-
 # ============================================
 # INSCRIPTION
 # ============================================
@@ -178,13 +190,11 @@ def register():
 
         conn = get_connection()
         cursor = conn.cursor()
-
         cursor.execute("SELECT id FROM Users WHERE email = ?", (email,))
         if cursor.fetchone():
             conn.close()
             flash('❌ Cet email est déjà utilisé', 'error')
             return redirect(url_for('register'))
-
         cursor.execute("SELECT id FROM Users WHERE username = ?", (username,))
         if cursor.fetchone():
             conn.close()
@@ -204,10 +214,8 @@ def register():
             conn.commit()
             user_id = cursor.lastrowid
             conn.close()
-
             with open(f'keys/user_{user_id}_private.pem', 'wb') as f:
                 f.write(private_key)
-
             confirm_link = url_for('confirm_email', token=token, _external=True)
             msg = Message(
                 subject="SecureChain - Confirmez votre email",
@@ -217,7 +225,6 @@ def register():
             mail.send(msg)
             flash('✅ Inscription réussie ! Un email de confirmation vous a été envoyé.', 'success')
             log_action(user_id, 'Inscription')
-
         except Exception as e:
             flash(f'❌ Erreur lors de l\'inscription: {str(e)}', 'error')
 
@@ -233,86 +240,112 @@ def confirm_email(token):
     cursor = conn.cursor()
     cursor.execute("SELECT id, email, email_confirmed, token_expires FROM Users WHERE confirmation_token = ?", (token,))
     user = cursor.fetchone()
-
     if not user:
         conn.close()
         flash('❌ Lien invalide', 'error')
         return redirect(url_for('index'))
-
     user_id, email, confirmed, expires = user
-
     if confirmed:
         conn.close()
         flash('✅ Email déjà confirmé.', 'success')
         return redirect(url_for('login'))
-
-    # SQLite : expires est un texte
     if expires and datetime.strptime(expires, '%Y-%m-%d %H:%M:%S') < datetime.now():
         conn.close()
         flash('❌ Lien expiré.', 'error')
         return redirect(url_for('login'))
-
     cursor.execute("UPDATE Users SET email_confirmed = 1, confirmation_token = NULL WHERE id = ?", (user_id,))
     conn.commit()
     conn.close()
-
     log_action(user_id, 'Email confirmé')
     flash('✅ Email confirmé ! Vous pouvez vous connecter.', 'success')
     return redirect(url_for('login'))
 
 # ============================================
-# RENVOYER EMAIL CONFIRMATION
+# MOT DE PASSE OUBLIÉ
 # ============================================
-@app.route('/resend-confirmation')
-@login_required
-def resend_confirmation():
-    user_id = session['user_id']
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form['email']
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username FROM Users WHERE email = ?", (email,))
+        user = cursor.fetchone()
+        if user:
+            user_id, username = user
+            token = generate_confirmation_token()
+            expires = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute("UPDATE Users SET confirmation_token = ?, token_expires = ? WHERE id = ?", (token, expires, user_id))
+            conn.commit()
+            conn.close()
+            reset_link = url_for('reset_password', token=token, _external=True)
+            try:
+                msg = Message(
+                    subject="SecureChain - Réinitialisation mot de passe",
+                    recipients=[email],
+                    body=f"Bonjour {username},\n\nRéinitialisez votre mot de passe :\n{reset_link}\n\nLien valable 1 heure.\n\nL'équipe SecureChain"
+                )
+                mail.send(msg)
+            except:
+                pass
+        else:
+            conn.close()
+        flash('✅ Si cet email existe, un lien de réinitialisation vous a été envoyé.', 'success')
+        return redirect(url_for('login'))
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT username, email, email_confirmed FROM Users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT id, token_expires FROM Users WHERE confirmation_token = ?", (token,))
     user = cursor.fetchone()
-
     if not user:
         conn.close()
-        flash('❌ Utilisateur introuvable', 'error')
-        return redirect(url_for('index'))
-
-    username, email, email_confirmed = user
-
-    if email_confirmed:
+        flash('❌ Lien invalide', 'error')
+        return redirect(url_for('login'))
+    user_id, expires = user
+    if expires and datetime.strptime(expires, '%Y-%m-%d %H:%M:%S') < datetime.now():
         conn.close()
-        flash('✅ Votre email est déjà confirmé.', 'success')
-        return redirect(url_for('dashboard'))
-
-    new_token = generate_confirmation_token()
-    new_expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute("UPDATE Users SET confirmation_token = ?, token_expires = ? WHERE id = ?", (new_token, new_expires, user_id))
-    conn.commit()
+        flash('❌ Lien expiré.', 'error')
+        return redirect(url_for('forgot_password'))
+    if request.method == 'POST':
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        if new_password != confirm_password:
+            flash('❌ Les mots de passe ne correspondent pas', 'error')
+            return redirect(request.url)
+        errors = []
+        if len(new_password) < 8: errors.append("8 caractères minimum")
+        if not re.search(r'[A-Z]', new_password): errors.append("une majuscule")
+        if not re.search(r'[0-9]', new_password): errors.append("un chiffre")
+        if errors:
+            flash(f'❌ Mot de passe faible : {", ".join(errors)}', 'error')
+            return redirect(request.url)
+        hashed = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        cursor.execute("UPDATE Users SET password = ?, confirmation_token = NULL, token_expires = NULL WHERE id = ?", (hashed, user_id))
+        conn.commit()
+        conn.close()
+        log_action(user_id, 'Mot de passe réinitialisé')
+        flash('✅ Mot de passe réinitialisé avec succès !', 'success')
+        return redirect(url_for('login'))
     conn.close()
-
-    confirm_link = url_for('confirm_email', token=new_token, _external=True)
-    try:
-        msg = Message(
-            subject="SecureChain - Nouveau lien de confirmation",
-            recipients=[email],
-            body=f"Bonjour {username},\n\nVoici votre nouveau lien :\n{confirm_link}\n\nValable 24h.\n\nL'équipe SecureChain"
-        )
-        mail.send(msg)
-        flash('✅ Un nouvel email de confirmation vous a été envoyé.', 'success')
-        log_action(user_id, 'Renvoyé email confirmation')
-    except Exception as e:
-        flash(f'❌ Erreur lors de l\'envoi: {str(e)}', 'error')
-
-    return redirect(url_for('index'))
+    return render_template('reset_password.html', token=token)
 
 # ============================================
-# CONNEXION
+# CONNEXION AVEC LIMITE TENTATIVES
 # ============================================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        ip = request.remote_addr
+
+        blocked, remaining, attempts = check_login_attempts(ip)
+        if blocked:
+            flash(f'❌ Trop de tentatives. Réessayez dans {remaining} minute(s).', 'error')
+            return redirect(url_for('login'))
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -324,21 +357,33 @@ def login():
 
         if not user:
             conn.close()
-            flash('❌ Identifiants incorrects', 'error')
+            count = record_failed_attempt(ip)
+            remaining_attempts = MAX_ATTEMPTS - count
+            if remaining_attempts > 0:
+                flash(f'❌ Identifiants incorrects. {remaining_attempts} tentative(s) restante(s).', 'error')
+            else:
+                flash(f'❌ Compte bloqué pendant {BLOCK_MINUTES} minutes.', 'error')
             return redirect(url_for('login'))
 
         user_id, db_username, email, hashed_password, twofa_secret, twofa_enabled, email_confirmed, role = user
 
         if not bcrypt.check_password_hash(hashed_password, password):
+            count = record_failed_attempt(ip)
+            remaining_attempts = MAX_ATTEMPTS - count
             log_action(user_id, 'Échec connexion')
             conn.close()
-            flash('❌ Identifiants incorrects', 'error')
+            if remaining_attempts > 0:
+                flash(f'❌ Identifiants incorrects. {remaining_attempts} tentative(s) restante(s).', 'error')
+            else:
+                flash(f'❌ Compte bloqué pendant {BLOCK_MINUTES} minutes.', 'error')
             return redirect(url_for('login'))
 
         if not email_confirmed:
             conn.close()
             flash('❌ Veuillez confirmer votre email avant de vous connecter.', 'error')
             return redirect(url_for('login'))
+
+        reset_attempts(ip)
 
         if twofa_enabled:
             session['2fa_user_id'] = user_id
@@ -415,12 +460,10 @@ def profile():
     """, (user_id,))
     user_data = cursor.fetchone()
     conn.close()
-
     profile_data = {
         'username': user_data[0], 'email': user_data[1],
         'public_key': user_data[2][:100] + '...' if user_data[2] else 'N/A',
         'full_public_key': user_data[2], 'file_count': user_data[6],
-        # SQLite : dates sont des textes
         'first_upload': user_data[7][:10] if user_data[7] else 'Aucun fichier',
         'member_since': user_data[8][:10] if user_data[8] else 'N/A',
         'twofa_enabled': user_data[3], 'email_confirmed': user_data[4],
@@ -437,11 +480,9 @@ def change_password():
     old_password = request.form['old_password']
     new_password = request.form['new_password']
     confirm_password = request.form['confirm_password']
-
     if new_password != confirm_password:
         flash('❌ Les nouveaux mots de passe ne correspondent pas', 'error')
         return redirect(url_for('profile'))
-
     errors = []
     if len(new_password) < 8: errors.append("8 caractères minimum")
     if not re.search(r'[A-Z]', new_password): errors.append("une majuscule")
@@ -449,18 +490,15 @@ def change_password():
     if errors:
         flash(f'❌ Mot de passe faible : {", ".join(errors)}', 'error')
         return redirect(url_for('profile'))
-
     user_id = session['user_id']
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT password FROM Users WHERE id = ?", (user_id,))
     stored_password = cursor.fetchone()[0]
-
     if not bcrypt.check_password_hash(stored_password, old_password):
         flash('❌ Ancien mot de passe incorrect', 'error')
         conn.close()
         return redirect(url_for('profile'))
-
     new_hashed = bcrypt.generate_password_hash(new_password).decode('utf-8')
     cursor.execute("UPDATE Users SET password = ? WHERE id = ?", (new_hashed, user_id))
     conn.commit()
@@ -557,39 +595,29 @@ def share_file(block_id):
 def access_shared(token):
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : comparaison de dates en texte
     cursor.execute("""
         SELECT s.block_id, b.filename, b.file_hash, s.expires_at
-        FROM Shares s JOIN Blocks b ON s.block_id = b.id
-        WHERE s.token = ?
+        FROM Shares s JOIN Blocks b ON s.block_id = b.id WHERE s.token = ?
     """, (token,))
     share = cursor.fetchone()
-
     if not share:
         conn.close()
         flash('❌ Lien invalide', 'error')
         return redirect(url_for('index'))
-
     block_id, filename, file_hash, expires = share
     conn.close()
-
-    # Vérifier expiration manuellement
     if datetime.strptime(expires, '%Y-%m-%d %H:%M:%S') < datetime.now():
         flash('❌ Lien expiré', 'error')
         return redirect(url_for('index'))
-
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.enc")
     meta_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.meta")
-
     if not os.path.exists(file_path) or not os.path.exists(meta_path):
         flash('❌ Fichier introuvable', 'error')
         return redirect(url_for('index'))
-
     with open(file_path, 'rb') as f:
         encrypted = f.read()
     with open(meta_path, 'rb') as f:
         meta = pickle.load(f)
-
     data = decrypt_file(encrypted, meta['key'], meta['nonce'], meta['tag'])
     return send_file(io.BytesIO(data), as_attachment=True, download_name=filename, mimetype='application/octet-stream')
 
@@ -614,7 +642,6 @@ def dashboard():
     stats = {
         'total_files': total_files, 'total_blocks': total_blocks, 'active_users': active_users,
         'last_file': recent[0] if recent else 'Aucun',
-        # SQLite : date est un texte
         'last_date': recent[1][:10] if recent and recent[1] else 'N/A'
     }
     return render_template('dashboard.html', stats=stats)
@@ -623,13 +650,10 @@ def dashboard():
 def upload_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : DATE() au lieu de CAST AS DATE, DATEADD → DATE('now', '-7 days')
     cursor.execute("""
         SELECT DATE(timestamp) as date, COUNT(*) as count
-        FROM Blocks
-        WHERE timestamp >= DATE('now', '-7 days')
-        GROUP BY DATE(timestamp)
-        ORDER BY date
+        FROM Blocks WHERE timestamp >= DATE('now', '-7 days')
+        GROUP BY DATE(timestamp) ORDER BY date
     """)
     data = cursor.fetchall()
     conn.close()
@@ -639,7 +663,6 @@ def upload_stats():
 def user_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : LIMIT au lieu de TOP
     cursor.execute("""
         SELECT u.username, COUNT(b.id) as file_count
         FROM Users u LEFT JOIN Blocks b ON u.id = b.user_id
@@ -672,25 +695,62 @@ def stats():
     return render_template('stats.html', stats={'total_files': len(files), 'categories': categories})
 
 # ============================================
-# MES FICHIERS
+# MES FICHIERS + RECHERCHE
 # ============================================
 @app.route('/my-files')
 @login_required
 def my_files():
     user_id = session['user_id']
+    search = request.args.get('search', '').strip()
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, filename, file_hash, timestamp FROM Blocks WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
+    if search:
+        cursor.execute("""
+            SELECT id, filename, file_hash, timestamp FROM Blocks
+            WHERE user_id = ? AND filename LIKE ? ORDER BY timestamp DESC
+        """, (user_id, f'%{search}%'))
+    else:
+        cursor.execute("SELECT id, filename, file_hash, timestamp FROM Blocks WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
     files = []
     for row in cursor.fetchall():
         files.append({
             'id': row[0], 'filename': row[1],
             'hash': row[2][:20] + '...', 'full_hash': row[2],
-            # SQLite : date est un texte
             'date': row[3][:16] if row[3] else 'N/A'
         })
     conn.close()
-    return render_template('my_files.html', files=files)
+    return render_template('my_files.html', files=files, search=search)
+
+# ============================================
+# SUPPRESSION FICHIER
+# ============================================
+@app.route('/delete/<int:block_id>')
+@login_required
+def delete_file(block_id):
+    user_id = session['user_id']
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT filename, file_hash, user_id FROM Blocks WHERE id = ?", (block_id,))
+    block = cursor.fetchone()
+    if not block or block[2] != user_id:
+        conn.close()
+        flash('❌ Fichier non trouvé ou accès non autorisé', 'error')
+        return redirect(url_for('my_files'))
+    filename, file_hash, _ = block
+    cursor.execute("SELECT COUNT(*) FROM Blocks WHERE file_hash = ?", (file_hash,))
+    count = cursor.fetchone()[0]
+    cursor.execute("DELETE FROM Shares WHERE block_id = ?", (block_id,))
+    cursor.execute("DELETE FROM Blocks WHERE id = ?", (block_id,))
+    conn.commit()
+    conn.close()
+    if count <= 1:
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.enc")
+        meta_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_hash}.meta")
+        if os.path.exists(file_path): os.remove(file_path)
+        if os.path.exists(meta_path): os.remove(meta_path)
+    log_action(user_id, f'Suppression fichier #{block_id} - {filename}')
+    flash(f'✅ Fichier "{filename}" supprimé avec succès', 'success')
+    return redirect(url_for('my_files'))
 
 # ============================================
 # UPLOAD
@@ -748,14 +808,12 @@ def process_upload(data, filename, file_hash):
     signature = sign_data(file_hash.encode(), private_key)
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : LIMIT au lieu de TOP
     cursor.execute("SELECT file_hash FROM Blocks ORDER BY id DESC LIMIT 1")
     last = cursor.fetchone()
     previous_hash = last[0] if last else "0"
     cursor.execute("INSERT INTO Blocks (filename, file_hash, previous_hash, signature, user_id) VALUES (?, ?, ?, ?, ?)",
         (filename, file_hash, previous_hash, signature, user_id))
     conn.commit()
-    # SQLite : lastrowid au lieu de @@IDENTITY
     block_id = cursor.lastrowid
     conn.close()
     log_action(user_id, f'Upload fichier #{block_id}')
@@ -852,6 +910,26 @@ def verify_block():
     return redirect(url_for('verify', block_id=block_id))
 
 # ============================================
+# BLOCKCHAIN PUBLIQUE
+# ============================================
+@app.route('/blockchain')
+def blockchain():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT b.id, b.filename, b.file_hash, b.timestamp, u.username
+        FROM Blocks b JOIN Users u ON b.user_id = u.id ORDER BY b.id DESC
+    """)
+    blocks = []
+    for row in cursor.fetchall():
+        blocks.append({
+            'id': row[0], 'filename': row[1], 'file_hash': row[2],
+            'timestamp': row[3][:16] if row[3] else 'N/A', 'username': row[4]
+        })
+    conn.close()
+    return render_template('blocks.html', blocks=blocks)
+
+# ============================================
 # PANEL ADMIN
 # ============================================
 @app.route('/admin')
@@ -867,13 +945,11 @@ def admin_panel():
     total_logs = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM Users WHERE email_confirmed = 0")
     unconfirmed_users = cursor.fetchone()[0]
-    # SQLite : LIMIT au lieu de TOP
     cursor.execute("SELECT id, username, email, created_at, role, email_confirmed FROM Users ORDER BY created_at DESC LIMIT 10")
     recent_users = cursor.fetchall()
     cursor.execute("""
         SELECT b.id, b.filename, b.timestamp, u.username
-        FROM Blocks b JOIN Users u ON b.user_id = u.id
-        ORDER BY b.timestamp DESC LIMIT 10
+        FROM Blocks b JOIN Users u ON b.user_id = u.id ORDER BY b.timestamp DESC LIMIT 10
     """)
     recent_files = cursor.fetchall()
     cursor.execute("""
@@ -944,8 +1020,7 @@ def admin_logs():
     cursor = conn.cursor()
     cursor.execute("""
         SELECT l.id, l.user_id, u.username, l.action, l.ip_address, l.created_at
-        FROM Logs l LEFT JOIN Users u ON l.user_id = u.id
-        ORDER BY l.created_at DESC
+        FROM Logs l LEFT JOIN Users u ON l.user_id = u.id ORDER BY l.created_at DESC
     """)
     logs = cursor.fetchall()
     conn.close()
@@ -956,7 +1031,6 @@ def admin_logs():
 def admin_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    # SQLite : DATE() au lieu de CAST AS DATE
     cursor.execute("""
         SELECT DATE(timestamp) as date, COUNT(*) as uploads, COUNT(DISTINCT user_id) as active_users
         FROM Blocks GROUP BY DATE(timestamp) ORDER BY date DESC
@@ -988,9 +1062,7 @@ def index():
     for row in cursor.fetchall():
         blocks.append({
             'id': row[0], 'filename': row[1], 'hash': row[2][:20] + '...',
-            # SQLite : date est un texte
-            'date': row[3][:16] if row[3] else 'N/A',
-            'owner': row[4]
+            'date': row[3][:16] if row[3] else 'N/A', 'owner': row[4]
         })
     conn.close()
     return render_template('index.html', blocks=blocks)
