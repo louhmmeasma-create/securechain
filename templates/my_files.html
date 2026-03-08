@@ -1,6 +1,49 @@
 {% extends "base.html" %}
 
 {% block content %}
+
+<!-- ✅ Documents à signer -->
+{% if to_sign %}
+<div class="card" style="margin-bottom:20px; border:1px solid #f97316;">
+    <div class="card-header">
+        <i class="fas fa-pen-nib" style="color:#f97316;"></i>
+        <div>
+            <h2 style="color:#f97316;">Documents en attente de votre signature</h2>
+            <p>{{ to_sign|length }} document(s) nécessitent votre signature</p>
+        </div>
+    </div>
+    <div class="table-container" style="margin-bottom:0; border-radius:var(--r-lg); border:1px solid var(--border);">
+        <table>
+            <thead>
+                <tr>
+                    <th>Fichier</th>
+                    <th>Propriétaire</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in to_sign %}
+                <tr>
+                    <td>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <i class="fas fa-file-signature" style="color:#f97316;"></i>
+                            <span style="color:var(--text-1); font-weight:500;">{{ item[1] }}</span>
+                        </span>
+                    </td>
+                    <td style="color:var(--text-3);">{{ item[2] }}</td>
+                    <td>
+                        <a href="/sign/{{ item[0] }}" class="btn btn-primary" style="padding:7px 14px; font-size:0.85em; background:#f97316; border-color:#f97316;">
+                            <i class="fas fa-pen-nib"></i> Signer
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <div class="card">
     <div class="card-header">
         <i class="fas fa-folder-open"></i>
@@ -44,13 +87,19 @@
                     <th>Fichier</th>
                     <th>Hash</th>
                     <th>Date</th>
+                    <th>Expiration</th>
+                    <th>Statut</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for file in files %}
-                <tr>
-                    <td><span style="font-family:'JetBrains Mono',monospace; color:var(--violet); font-weight:600;">#{{ file.id }}</span></td>
+                <tr style="{% if file.is_expired %}opacity:0.6;{% endif %}">
+                    <td>
+                        <span style="font-family:'JetBrains Mono',monospace; color:var(--violet); font-weight:600;">
+                            #{{ file.id }}
+                        </span>
+                    </td>
                     <td>
                         <span style="display:flex; align-items:center; gap:8px;">
                             <i class="fas fa-file-shield" style="color:var(--cyan); font-size:0.95em;"></i>
@@ -59,15 +108,57 @@
                     </td>
                     <td><code>{{ file.hash }}</code></td>
                     <td style="color:var(--text-3); font-size:0.88em;">{{ file.date }}</td>
+
+                    <!-- ✅ Expiration -->
+                    <td style="font-size:0.85em;">
+                        {% if file.is_expired %}
+                            <span style="color:#ef4444; font-weight:600;">
+                                <i class="fas fa-clock"></i> Expiré
+                            </span>
+                        {% elif file.expires_at == 'Jamais' %}
+                            <span style="color:var(--text-3);">∞ Jamais</span>
+                        {% else %}
+                            <span style="color:var(--cyan);">
+                                <i class="fas fa-hourglass-half"></i> {{ file.expires_at }}
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <!-- ✅ Statut -->
                     <td>
-                        <div style="display:flex; gap:8px;">
-                            <a href="/download/{{ file.id }}" class="btn btn-primary" style="padding:7px 14px; font-size:0.85em;" title="Télécharger">
+                        {% if file.is_expired %}
+                            <span style="background:#ef4444; color:white; padding:4px 8px; border-radius:6px; font-size:0.78em; white-space:nowrap;">❌ Expiré</span>
+                        {% elif file.is_valid %}
+                            <span style="background:#10b981; color:white; padding:4px 8px; border-radius:6px; font-size:0.78em; white-space:nowrap;">✅ Valide</span>
+                        {% else %}
+                            <span style="background:#f97316; color:white; padding:4px 8px; border-radius:6px; font-size:0.78em; white-space:nowrap;">⏳ En attente</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Actions -->
+                    <td>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            {% if not file.is_expired %}
+                            <a href="/download/{{ file.id }}" class="btn btn-primary" style="padding:7px 12px; font-size:0.85em;" title="Télécharger">
                                 <i class="fas fa-download"></i>
                             </a>
-                            <a href="/share/{{ file.id }}" class="btn btn-secondary" style="padding:7px 14px; font-size:0.85em;" title="Partager">
+                            {% endif %}
+
+                            <a href="/share/{{ file.id }}" class="btn btn-secondary" style="padding:7px 12px; font-size:0.85em;" title="Partager">
                                 <i class="fas fa-share-nodes"></i>
                             </a>
-                            <a href="/delete/{{ file.id }}" class="btn btn-danger" style="padding:7px 14px; font-size:0.85em;" title="Supprimer"
+
+                            <!-- ✅ QR Code -->
+                            <a href="/qrcode/{{ file.id }}" target="_blank" class="btn btn-secondary" style="padding:7px 12px; font-size:0.85em;" title="QR Code de vérification">
+                                <i class="fas fa-qrcode"></i>
+                            </a>
+
+                            <!-- ✅ Signatures -->
+                            <a href="/signatures/{{ file.id }}" class="btn btn-secondary" style="padding:7px 12px; font-size:0.85em;" title="Voir les signatures">
+                                <i class="fas fa-pen-nib"></i>
+                            </a>
+
+                            <a href="/delete/{{ file.id }}" class="btn btn-danger" style="padding:7px 12px; font-size:0.85em;" title="Supprimer"
                                onclick="return confirm('Supprimer ce fichier définitivement ?')">
                                 <i class="fas fa-trash"></i>
                             </a>
