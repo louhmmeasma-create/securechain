@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>🔏 Signatures - {{ block[0] }}</h2>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <p><strong>Fichier :</strong> {{ block[0] }}</p>
+            <p><strong>Statut :</strong>
+                {% if block[1] %}
+                    <span class="badge bg-success">✅ Valide</span>
+                {% else %}
+                    <span class="badge bg-warning">⏳ En attente de signatures</span>
+                {% endif %}
+            </p>
+            <p><strong>Expiration :</strong> {{ block[2][:10] if block[2] else 'Jamais' }}</p>
+        </div>
+    </div>
+
+    <table class="table table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>Signataire</th>
+                <th>Email</th>
+                <th>Statut</th>
+                <th>Date de signature</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sig in signatures %}
+            <tr>
+                <td>{{ sig[1] }}</td>
+                <td>{{ sig[2] }}</td>
+                <td>
+                    {% if sig[3] %}
+                        <span class="badge bg-success">✅ Signé</span>
+                    {% else %}
+                        <span class="badge bg-warning">⏳ En attente</span>
+                    {% endif %}
+                </td>
+                <td>{{ sig[4][:16] if sig[4] else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{ url_for('my_files') }}" class="btn btn-secondary">← Retour</a>
+</div>
+{% endblock %}
