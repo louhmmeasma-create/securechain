@@ -57,13 +57,13 @@ def log_action(user_id, action):
         cursor = conn.cursor()
         ip = request.remote_addr
         cursor.execute(
-            "INSERT INTO Logs (user_id, action, ip_address) VALUES (?, ?, ?)",
-            (user_id, action, ip)
+            "INSERT INTO Logs (user_id, action, ip_address, timestamp) VALUES (?, ?, ?, ?)",
+            (user_id, action, ip, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         )
         conn.commit()
         conn.close()
-    except:
-        pass
+    except Exception as e:
+        print(f"Erreur log_action: {e}")
 
 def login_required(f):
     @wraps(f)
@@ -502,8 +502,7 @@ def profile():
         SELECT u.username, u.email, u.public_key, u.twofa_enabled, u.email_confirmed, u.role,
                COUNT(b.id) as file_count, MIN(b.timestamp) as first_upload, u.created_at
         FROM Users u LEFT JOIN Blocks b ON b.user_id = u.id
-        WHERE u.id = ? GROUP BY u.id, u.username, u.email, u.public_key,
-        u.twofa_enabled, u.email_confirmed, u.role, u.created_at
+        WHERE u.id = ? GROUP BY u.id
     """, (user_id,))
     user_data = cursor.fetchone()
     conn.close()
@@ -1193,7 +1192,7 @@ def blockchain():
     return render_template('blocks.html', blocks=blocks)
 
 # ============================================
-# PANEL ADMIN
+# PANEL ADMIN (Version SQLite corrigée)
 # ============================================
 @app.route('/admin')
 @admin_required
